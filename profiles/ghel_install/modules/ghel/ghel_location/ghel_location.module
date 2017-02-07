@@ -1,0 +1,241 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Location Feature
+ */
+
+define('GHEL_LOCATION_OTHER', 0);
+/*
+ * Implementation of hook_menu
+ */
+function ghel_location_menu(){
+
+  $items['admin/config/system/ghel_location_update'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ghel_location_user_location'),
+    'access arguments' => array('access administration pages'),
+    'title' => 'Ghel Location User Assignment',
+    'description' => 'Reset user location(s) (assign Region & Subregion based on Location) for a specific user',
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/config/system/ghel_location_update_locations'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ghel_location_admin_settings_form'),
+    'access arguments' => array('access administration pages'),
+    'title' => 'Ghel Re-Assign Locations',
+    'description' => 'Update assignment of regions and sub-regions for countries',
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'ghel_location.admin.inc',
+  );
+
+  return $items;
+}
+/*
+ * ghel_location_user_location
+ * ghel_location form for batch process update of user region and subregion.
+ */
+function ghel_location_user_location($form_state, &$form_state){
+
+
+  $form['ghel_location_uid'] = array(
+    '#type' => 'textfield',
+    '#maxlength' => 10,
+    '#required'=> TRUE,
+    '#description' => 'Provide the user ID of the record you wish to update.'
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Reset User Location(s)'),
+  );
+
+  return $form;
+}
+/*
+ * function ghel_location_user_location_submit
+ * creates batch process to update user region and subregion values based on value
+ * location.
+ */
+function ghel_location_user_location_submit($form, &$form_state){
+  //only allow single-user updates via UI/ Larger updates need to be done via Drush.
+  if($form_uid = trim($form['ghel_location_uid']['#value'])){
+    ghel_location_update_user_location($form_uid,0);
+  }
+}
+/*
+ * function ghel_location_update_user_location
+ *  Update user locations based
+ * $userid : Specific User ID, or 0 if you want this to be range
+ * $range : max result number to return
+ */
+function ghel_location_update_user_location($uid, $range){
+
+  echo "\n******Begin User Location Update.*******\n";
+
+  if ($uid ){
+     ghel_location_user_location_process($uid);
+  }
+  else{
+    $select = db_select('users', 'u');
+    $select->fields('u', array('uid'));
+    if($range){
+      $select->range($uid, $range);
+    }
+    $select->orderBy('uid', 'ASC');
+
+    try{
+      $result = $select->execute();
+    }
+    catch (Exception $e) {
+      watchdog_exception('type', $e);
+    }
+    //update all user locations
+    foreach ($result as $record) {
+      ghel_location_user_location_process($record->uid);
+    }
+  }
+  echo "\n******User Location Update Complete.*******\n\n";
+}
+
+/*
+ * ghel_location_user_location_process
+ * action taken on users in batch process
+ */
+function ghel_location_user_location_process($ghel_uid = NULL){
+
+
+  if($ghel_uid != NULL ){
+    echo "\n updating location for uid: " . $ghel_uid;
+    $account = user_load($ghel_uid);
+    if($account && isset($account->field_ghel_user_location['und'])){
+      //get the region and sub region for the accoun tlocation
+      $ghel_user_location = $account->field_ghel_user_location['und'][0]['value'];
+      $ghel_region_keys = get_ghel_regions((string)$ghel_user_location);
+
+      if(isset($ghel_region_keys['region_key']) && isset($ghel_region_keys['sub_region_key'])){
+        if(count($ghel_region_keys)){
+          //pre-save assigns values for region & subregion
+          user_save($account,array());
+        }
+      }
+    }
+  }
+}
+/*
+ * Implementation of hook_form_alter
+ * Adds ajax callback for location dropbox (which will set region and subregion values based on that selection)
+ *
+ */
+  function ghel_location_form_alter(&$form, $form_state, $form_id) {
+
+    if($form_id == 'user_profile_form' || $form_id == 'user_register_form'){
+      // Add the js file only on pages where we need it
+      drupal_add_js(drupal_get_path('module', 'ghel_location') . '/js/ghel_location.js', 'file');
+      $form['field_ghel_user_location']['und']['#ajax'] =
+         array(
+        'callback' => 'ghel_populate_regions',
+        'event' => 'change'
+      );
+      //$form['#validate'][] = 'ghel_validation';
+    }
+    return ($form);
+  }
+/*
+ * Function ghel_validation
+ * Validates the ghel region & subregion based on lookup table.
+ * Values are automatically populated on the UI, but if a user changes them , this will catch and reset.
+ * Disabled
+ *
+ */
+function ghel_validation($form, &$form_state) {
+
+  if(isset($form_state['values']['field_ghel_user_location'])){
+    $regions = get_ghel_regions($form_state['values']['field_ghel_user_location'][LANGUAGE_NONE][0]['value']);
+    $form_state['values']['field_ghel_region']['und'][0]['value'] = $regions['region_key'];
+    $form_state['values']['field_ghel_sub_region']['und'][0]['value'] = $regions['sub_region_key'];
+  }
+}
+/*
+ * Make sure region and subregion were properly set
+ * This step exists to ensure field values were not incorrectly changed on the UI
+ *
+ */
+function ghel_location_user_presave(&$edit, $account, $category){
+
+   $regions = get_ghel_regions($account->field_ghel_user_location['und'][0]['value']);
+   $account->field_ghel_region['und'][0]['value'] = (string)$regions['region_key'];
+   $account->field_ghel_sub_region['und'][0]['value'] = (string)$regions['sub_region_key'];
+}
+/*
+ *
+ *  Ajax event for location select box change.  Will call JS function to change values of
+ *  Region and Sub Region based on the user selection
+ */
+function ghel_populate_regions($form, &$form_state){
+
+ $ghel_user_location = $form_state['values']['field_ghel_user_location']['und'][0]['value'];
+ $ghel_region_keys = get_ghel_regions($ghel_user_location);
+
+  if(count($ghel_region_keys)){
+    // Auto-select region and sub region based on the returned key values
+    $commands[] = array
+    (
+      'command' => 'ghel_populate_regions_js',
+      'ghel_region' => $ghel_region_keys['region_key'],
+      'ghel_sub_region' => $ghel_region_keys['sub_region_key'],
+    );
+
+  }else{
+    //if no values were returned, select 'Other'
+
+    $commands[] = array
+    (
+      'command' => 'ghel_populate_regions_js',
+      'ghel_region' => GHEL_LOCATION_OTHER,
+      'ghel_sub_region' => GHEL_LOCATION_OTHER,
+    );
+  }
+  //This triggers the function in ghel_location.js
+  return array('#type' => 'ajax', '#commands' => $commands);
+}
+/*
+ *  Returns region and sub region for a given location
+ *
+ */
+
+function get_ghel_regions($ghel_user_location){
+
+  $region_keys = array();
+
+  //Get the region and sub region for a given location
+  $select = db_select('ghel_location_lookup', 'l');
+  $select->fields('l', array('region_key', 'sub_region_key'));
+  $select->condition('l.location_key',$ghel_user_location , '=');
+
+  try{
+    $result = $select->execute();
+  }
+  catch (Exception $e) {
+    watchdog_exception('type', $e);
+  }
+
+  foreach ($result as $record) {
+    $region_keys['region_key'] =  $record->region_key;
+    $region_keys['sub_region_key'] =  $record->sub_region_key;
+  }
+
+  return ($region_keys);
+}
+
+/**
+ * Implementation of hook_theme.
+ */
+function ghel_location_theme() {
+  return array(
+    'ghel_location_form_table' => array(
+      // The renderable element is the form.
+      'render element' => 'form',
+    ),
+  );
+}

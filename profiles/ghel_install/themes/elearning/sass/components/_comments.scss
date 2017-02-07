@@ -1,0 +1,273 @@
+//
+// @file
+// Comment styles.
+
+
+// Feedback
+
+.feedback-list {
+  padding-left: $w-gutter-half;
+}
+
+.feedback-item {
+  display: block;
+  @include trailing-border(1px, 2);
+  border-color: $gray-lighter;
+  margin-bottom: rhythm(2);
+}
+
+// Comments
+
+#comments {
+  margin-top: rhythm(4); // set to override specificity
+}
+
+.comment-wrapper {
+  margin-bottom: rhythm(4);
+
+  .indented {
+    margin-left: 10%;
+
+    @include breakpoint($tablet, $no-query: '.lt-ie9') {
+      margin-left: 5%;
+    }
+
+    @include breakpoint($desktop, $no-query: '.lt-ie9') {
+      margin-left: rhythm(8);
+    }
+  }
+
+  h2.title {
+    border-bottom: 3px $gray-white solid;
+    padding: rhythm(1);
+  }
+
+  .comment {
+    margin: rhythm(2) 0;
+
+    .content {
+      padding: 0 rhythm(1);
+    }
+  }
+
+  .submitted {
+  }
+
+  .permalink {
+    margin-left: rhythm(2);
+    @extend %button;
+    @extend %button-small;
+    @extend %button-white;
+  }
+}
+
+.comment .links {
+  @include horizontal-list;
+  margin: 0 rhythm(1);
+  padding: rhythm(1) 0;
+}
+
+.comment .nav-link {
+  @extend %button;
+  @extend %button-small;
+}
+
+.comment-edit .nav-link,
+.comment-reply .nav-link {
+  @extend %button-white;
+}
+
+.comment-delete.nav-item {
+  float: right; // de-emphasizing the delete button
+}
+
+.comment-delete .nav-link {
+  @extend %button-danger;
+}
+
+.flag-ghel_flag_comment_abuse .flag-action {
+  &:hover {
+    text-decoration: none;
+  }
+}
+
+.comment-meta {
+  margin-bottom: rhythm(2, $fs-s);
+  @include adjust-font-size-to($fs-s);
+}
+  .comments-wrapper {
+    @include box-shadow(rgba(0, 0, 0, 0.1)1px 1px 4px -1px );
+    background:#fff;
+    h2.title{
+      font-size: 32px;
+      font-weight: 400;
+      color: #636363;
+      text-transform: uppercase;
+      border-bottom: 1px solid #c5c5c5;
+      margin: 0;
+      text-align: left;
+      padding: 20px;
+    }
+    .comment{
+      background: #fff;
+      margin: 0;
+      padding: 20px 10px;
+      margin: 0 0 10px;
+      border-bottom:1px solid #eee;
+      .content{
+        max-width: 800px;
+      }
+
+    }
+  }
+.comment-wrapper{
+  .indented {     
+    padding:0 0 10px 10px;
+    margin:20px 0 ;
+    border-bottom:1px solid #eee;
+    .comment{
+      border:none;
+      border-left: 5px solid #E9E9E9;
+      margin: 0 0 0 10px;
+
+    }
+    .indented{
+      border:none;
+      margin-left: 10px;
+    }
+  }
+}
+// Add comment form
+.comment-form-wrapper{
+  }    
+
+h2.title.comment-form {
+
+    font-size: 17px;
+    background: $link-color;
+    color: #fff;
+    padding: 15px 10px;
+    margin:0 0 20px;
+    text-align: center;
+    text-transform: uppercase;
+    cursor: pointer;
+    border:none;
+    width: 200px;
+    // -webkit-transition: all 0.8s ease;
+    // -moz-transition: all 0.8s ease;
+    // transition: all 0.8s ease;
+    &:hover{
+      background:$link-color-hover;
+    }
+
+}
+
+#comment-form {
+  max-height: 0;
+  overflow: hidden;
+  -webkit-transition: max-height 0.8s ease;
+  -moz-transition: max-height 0.8s ease;
+  transition: max-height 0.8s ease;
+
+  @include box-shadow( inset 0 0 15px -3px rgba(0,0,0,0.3));
+  background: #e4e4e4;
+    padding:0;
+    box-sizing: border-box;
+  label {
+    display: none; // no need to label a single field
+  }
+
+  .cke_skin_kama {
+    border: none;
+    padding: 0;
+  }
+
+  // Attachments
+  fieldset {
+    border: none;
+    padding: 0;
+
+    legend {
+      margin: rhythm(1) 0;
+      padding: 0;
+    }
+
+    .file-widget {
+      margin: rhythm(1) 0;
+    }
+  }
+
+  .fieldset-wrapper {
+    padding: 0;
+    border-bottom: 3px $gray-white solid;
+  }
+
+  .form-actions .form-submit {
+    @extend %button-xlarge;
+    width: 100%;
+
+    @include breakpoint($mobile, $no-query: '.lt-ie9') {
+      width: auto;
+    }
+  }
+  > div{
+    width: 80%;
+    position: relative;
+    padding: 20px;
+    box-sizing: border-box;
+    #edit-actions{
+        
+      position: absolute;
+      top: 0;
+      right: -20%;
+      margin: 0 auto;
+      width: 20%;
+      box-sizing: border-box;
+      padding: 15px 0 15px 15px;
+
+    }
+  }
+}
+
+.comment-add.nav-item a{
+  display: none;
+}
+
+.open #comment-form{
+  max-height: 10000px;
+  padding: 0;
+}
+
+.open h2.title.comment-form {
+      background:#dfdfdf;
+      color:$link-color;
+    
+}
+
+
+@media(max-width:767px){
+   #comment-form {
+      > div,
+      > div #edit-actions{
+        float: none;
+        width: 100%;
+        position:relative;
+        margin: 0;
+        right:0;
+      }
+    }
+}
+
+
+.page-comment-edit,
+.page-comment-reply{
+  #comment-form,
+  .open#comment-form{
+    height: autp;
+    height: auto;
+    padding: 20px;
+    margin: 10px 0;
+    max-height: 100000px;
+    overflow: visible;
+  }
+}

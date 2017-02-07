@@ -1,0 +1,1023 @@
+<?php
+/**
+ * @file
+ * Provides integration with the achievements module.
+ */
+
+/**
+ * Implements hook_achievements_info().
+ *
+ * Note that achievement ids, must not exceed three parts when split on '-';
+ *   eg. PARTONE-PARTTWO-PARTTHREE
+ * Also achievement ids should not exceeed 32 characters.
+ */
+function ghel_achievements_achievements_info() {
+  $achievements = array();
+
+  // Create an achievement for each course.
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'ghel_course');
+  $result = $query->execute();
+  if (!empty($result['node'])) {
+
+    $nodes = node_load_multiple(array_keys($result['node']));
+    foreach ($nodes as $node) {
+      $revision = ghel_course_get_revision($node);
+      $i = 0;
+      while ($i <= $revision) {
+        // Add course begin.
+        $achievements['ghel-course-start']['title'] = t('In Progress Courses');
+        $achievements['ghel-course-start']['achievements']['g-c-start-' . $node->nid . '-' . $i] = array(
+          'title' => t('Started @coursetitle', array('@coursetitle' => $node->title)),
+          'description' => t('Awarded when you start @coursetitle.', array('@coursetitle' => $node->title)),
+          'points' => 1,
+        );
+
+        // Add comprehensive course completion.
+        $achievements['ghel-course-completion']['title'] = t('Completed Courses');
+        $achievements['ghel-course-completion']['achievements']['g-c-completion-' . $node->nid . '-' . $i] = array(
+          'title' => t('Completed @coursetitle', array('@coursetitle' => $node->title)),
+          'description' => t('Awarded when all requirements for @coursetitle have been met.', array('@coursetitle' => $node->title)),
+          'points' => 1,
+        );
+
+        // Add final quiz completion.
+        $achievements['ghel-final-quiz']['title'] = t('Completed Final Quizzes');
+        $achievements['ghel-final-quiz']['achievements']['g-f-quiz-' . $node->nid . '-' . $i] = array(
+          'title' => t('Completed final quiz in @coursetitle', array('@coursetitle' => $node->title)),
+          'description' => t('Awarded when you successfully complete the final quiz for @coursetitle.', array('@coursetitle' => $node->title)),
+          'points' => 1,
+        );
+
+        $i++;
+      }
+    }
+  }
+
+  // Create an achievement for each program.
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'ghel_program');
+  $result = $query->execute();
+  if (!empty($result['node'])) {
+    $achievements['ghel-program-completion']['title'] = t('Completed Programs');
+    $nodes = node_load_multiple(array_keys($result['node']));
+    foreach ($nodes as $node) {
+      $achievements['ghel-program-completion']['achievements']['g-p-completion-' . $node->nid . '-0'] = array(
+        'title' => t('@programtitle program completion', array('@programtitle' => $node->title)),
+        'description' => t('Awarded for completing all courses in @programtitle', array('@programtitle' => $node->title)),
+        'points' => 1,
+      );
+    }
+  }
+
+  return $achievements;
+}
+
+/**
+ * Helper function to return an associated nid from an achievement_id.
+ *
+ * @param string $achievement_id
+ *   Achievement_id as returned from hook_achievements_info
+ *
+ * @return mixed
+ *   An integer corresponding ot a node id or NULL.
+ */
+function ghel_achievements_get_nid($achievement_id) {
+  $parts = explode('-', $achievement_id);
+  end($parts);
+  $nid = prev($parts);
+  if (is_numeric($nid)) {
+    return $nid;
+  }
+  else {
+    return NULL;
+  }
+}
+
+/**
+ * Helper function to return a revision from an achievement_id.
+ *
+ * @param string $achievement_id
+ *   Achievement_id as returned from hook_achievements_info
+ *
+ * @return mixed
+ *   An integer corresponding of revision or NULL.
+ */
+function ghel_achievements_get_revision($achievement_id) {
+  $parts = explode('-', $achievement_id);
+  $revision = end($parts);
+
+  if (is_numeric($revision)) {
+    return $revision;
+  }
+  else {
+    return NULL;
+  }
+}
+
+/**
+ * Implements hook_quiz_finished().
+ *
+ * Used for detecting if this is a final quiz in a course and unlocking
+ * achievements.
+ */
+function ghel_achievements_quiz_finished($quiz, $score, $rid) {
+  global $user;
+
+  // Used to determine if we should redirect at the end.
+  $passed_final = NULL;
+
+  // Check course start (no concern for passing the quiz;
+  $query = new EntityFieldQuery();
+  $query->entityCondition('bundle', 'ghel_course')
+    ->fieldCondition('field_ghel_course_navigation', 'target_id', $quiz->nid);
+  $result = $query->execute();
+  if (!empty($result['node'])) {
+    $nodes = node_load_multiple(array_keys($result['node']));
+    foreach ($nodes as $node) {
+      // Let the user start the course.
+      $revision = ghel_course_get_revision($node);
+      if (!achievements_unlocked_already('g-c-start-' . $node->nid . '-' . $revision)) {
+        achievements_unlocked('g-c-start-' . $node->nid . '-' . $revision, $user->uid);
+      }
+    }
+  }
+
+  // Check for course passing.
+  if ($score['passing']) {
+    $query = new EntityFieldQuery();
+    $query->entityCondition('bundle', 'ghel_course')
+      ->fieldCondition('field_ghel_course_navigation', 'target_id', $quiz->nid);
+    $result = $query->execute();
+    if (!empty($result['node'])) {
+      $nodes = node_load_multiple(array_keys($result['node']));
+      foreach ($nodes as $node) {
+        // See if they have completed this course.
+        $revision = ghel_course_get_revision($node);
+        if (ghel_achievements_is_final_quiz($quiz, $node)) {
+          achievements_unlocked('g-f-quiz-' . $node->nid . '-' . $revision, $user->uid);
+          ghel_achievements_check_course_completion($node->nid);
+          $passed_final = $node->nid;
+        }
+      }
+
+      $course = $node;
+      if (!empty($passed_final)) {
+          // Find the quiz results.
+          // First find the quiz id.
+          $pages = field_get_items('node', $course, 'field_ghel_course_navigation');
+          if (!empty($pages)) {
+            $quiz = new stdClass;
+            $quiz->type = 1;
+            while ($quiz->type != 'quiz') {
+              $qnid = array_pop($pages);
+              $quiz = node_load($qnid['target_id']);
+            }
+
+            if (!empty($quiz->nid)) {
+              $query = db_select('quiz_node_results', 'r')
+                ->fields('r', array('result_id'))
+                ->condition('r.nid', $quiz->nid)
+                ->condition('r.uid', $user->uid)
+                ->condition('r.time_end', 0, '!=')
+                ->orderBy('r.time_end', 'DESC');
+
+              $results = $query->execute()->fetchCol();
+              $result = reset($results);
+
+              if (!empty($result)) {
+//                drupal_set_message(t('Congratulations! You have successfully passed the final exam in @course. Results are shown below.', array('@course' => $node->title)));
+                drupal_goto('node/' . $quiz->nid . '/myresults/' . $result, array(
+                  'query' => array(
+                    'field_ghel_course_ref' => $passed_final,
+                  ),
+                ));
+              }
+
+            }
+          }
+        } // end if (!empty($passed_final))
+
+
+
+    }
+  }
+}
+
+/**
+ * Implements hook_node_insert().
+ *
+ * Used for detecting if we are adding an action plan and unlocking
+ * achievements.
+ */
+
+/**
+ * Used to check and mark a course complete.
+ *
+ * The current criteria is passing the final quiz.
+ *
+ * @param int $courseid
+ *   A course to check for completion.
+ */
+function ghel_achievements_check_course_completion($courseid, $account = NULL) {
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+  $course = node_load($courseid);
+  $revision = ghel_course_get_revision($course);
+  if (achievements_unlocked_already('g-f-quiz-' . $courseid . '-' . $revision)) {
+    // The user has completed the course.
+    if (!achievements_unlocked_already('g-c-completion-' . $courseid . '-' . $revision)) {
+      achievements_unlocked('g-c-completion-' . $courseid . '-' . $revision, $account->uid);
+
+      // See if they have unlocked a program. Make sure they see the course we
+      // just unlocked.
+      drupal_static_reset('achievements_unlocked_already');
+      ghel_achievements_check_program_completion($courseid, $account);
+    }
+  }
+}
+
+/**
+ * Used to check and mark if we have completed a program.
+ *
+ * A program being completed is defined as completing all courses in the
+ * program.
+ *
+ * @param int $courseid
+ *   A courseid that triggered a course completion unlock.
+ */
+function ghel_achievements_check_program_completion($courseid, $account = NULL) {
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  // See if the user has completed all courses in referencing programs.
+  if ($programs = ghel_achievements_get_programs($courseid)) {
+    foreach ($programs as $program) {
+      if (ghel_achievements_completed_program($program, $account)) {
+        achievements_unlocked('g-p-completion-' . $program->nid . '-0', $account->uid);
+      }
+    }
+  }
+}
+
+/**
+ * Helper function to determine if this is the final quiz in a course.
+ *
+ * @param object $quiz
+ *   A quiz node objet used to identify if it is the last quiz in a course.
+ *
+ * @param object $course
+ *   A course node object used to identify if the provided quiz is the final.
+ *
+ * @return bool
+ *   Return TRUE indicating that the quiz is the final quiz. FALSE otherwise.
+ */
+function ghel_achievements_is_final_quiz($quiz, $course) {
+  // Not sure if this is a good/safe assumption that the last navigation node is
+  // the final quiz.
+  $last = end($course->field_ghel_course_navigation[$course->language]);
+
+  if (!empty($last)) {
+    if ($last['target_id'] == $quiz->nid) {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+/**
+ * Determines if a user has completed a program.
+ *
+ *  This checks completion of all courses to see if the program is complete.
+ *
+ * @param object $program
+ *   A program node.
+ *
+ * @return bool
+ *   TRUE indicating the user has completed the program FALSE otherwise.
+ */
+function ghel_achievements_completed_program($program, $account = NULL) {
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  // Programs with no courses can't be completed.
+  $courses = field_get_items('node', $program, 'field_ghel_courses');
+  if (!empty($courses)) {
+    // Used to count how many courses the user has completed.
+    $completed = 0;
+
+    foreach ($courses as $course_ref) {
+      $course = node_load($course_ref['target_id']);
+      $revision = ghel_course_get_revision($course);
+      if (achievements_unlocked_already('g-c-completion-' . $course->nid . '-' . $revision, $account->uid)) {
+        $completed++;
+      }
+      else {
+        // Quit checking as the user still has at least one course to finish.
+        break;
+      }
+    }
+  }
+
+  if ($completed == count($courses)) {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+
+/**
+ * Implements hook_achievements_unlocked().
+ */
+function ghel_achievements_achievements_unlocked($achievement, $uid) {
+  // the user just achieved this, but we don't want users seeing achievement
+  // noticies... so set seen to 1.
+  db_update('achievement_unlocks')
+    ->fields(array('seen' => 1))
+    ->condition('achievement_id', $achievement)
+    ->condition('uid', $uid)
+    ->execute();
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function ghel_achievements_views_api() {
+  return array('api' => 3);
+}
+
+/**
+ * Helper function to return user friendly strings corresponding to achievement_info.
+ */
+function ghel_achievements_get_types() {
+  return array(
+    'g-c-start' => t('Started course'),
+    'g-c-completion' => t('Completed course'),
+    'g-f-quiz' => t('Completed course final quiz'),
+    'g-p-completion' => t('Completed Program'),
+  );
+}
+
+/**
+ * Implements hook_mail()
+ */
+function ghel_achievements_mail($key, &$message, $params) {
+  $account = $params['account'];
+  $context = $params['context'];
+
+  // set up some email tokens
+  $data['user'] = $account;
+  $options['language'] = $message['language'];
+  user_mail_tokens($variables, $data, $options);
+  $uName=field_get_items('user', $account, 'field_ghel_first_name');
+  if(count($uName)>0) {
+    $name1= field_get_items('user', $account, 'field_ghel_first_name');
+    $first_name = $name1[0]['safe_value'];
+    $name2=field_get_items('user', $account, 'field_ghel_last_name');
+    $last_name = $name2[0]['safe_value'];
+    $realname = "$first_name $last_name";
+    $variables = array(
+//    '!site' => variable_get('site_name', "Global Health eLearning Center"),
+      '!site' => t("GHeL"),
+      '!name' => $realname,
+    );
+  }
+
+  if(!empty($context['program'])) {
+    $program = $context['program'];
+    $variables['!program'] = _ghel_achievements_node_link($program);
+  }
+
+  if(!empty($context['course'])) {
+    $course = $context['course'];
+    $variables['!course'] = _ghel_achievements_node_link($course);
+  }
+
+  $programs = array();
+  if(!empty($context['programs'])) {
+    $programs = $context['programs'];
+    $variables['!programs'] = '';
+    foreach($programs as $id => $program) {
+      // If course_republished, check if all courses in the program are published, if not remove program from variables
+      if ($key == 'course_republished') {
+        $program_courses_published = _ghel_achievements_check_all_courses_published($program, $course->nid);
+        if ($program_courses_published == FALSE) {
+          unset($programs[$id]);
+          continue;
+        }
+      } elseif ($key == 'course_under_review') { // If any other courses are not published, don't send a program revocation notice
+        $program_courses_published = _ghel_achievements_check_all_courses_published($program, $course->nid, $key);
+        if ($program_courses_published == FALSE) {
+          unset($programs[$id]);
+          continue;
+        }
+      }
+      $program_node = node_load($program);
+      $variables['!programs'] .= _ghel_achievements_node_link($program_node) . "<br>";
+    }
+  }
+
+  switch ($key) {
+    case 'course_added':
+      // A new course was added to the program, thus invalidating the user's achievement.
+      $message['subject'] = t('[!site] A new course has been added to one of your programs', $variables);
+      $body = array(
+        t("<p>Dear !name,</p>", $variables),
+        t('<p>A new course has been added to the !program program at Global Health eLearning Center.</p>', $variables),
+        t('<p>You will need to complete the new course(s) in order to update your program completion.</p>'),
+        t('<p>Sincerely,<br>'),
+        t('The GHeL Team</p>'),
+      );
+      $message['body'] = $body;
+      return;
+
+    case 'achievement_revoked':
+      // General case for a user's achievement being removed for whatever reason.
+      $message['subject'] = t('[!site] A course certification has been removed from a program you have completed', $variables);
+      $body = array(
+        t('<p>Dear !name,</p>', $variables),
+        t('<p>A course completion has been removed from your accomplishments. As a result our records no longer show that you have have completed the !program program.</p>', $variables),
+        t('<p>You will need to complete all courses in the program in order to recertify your program completion.</p>'),
+        t('<p>Sincerely,<br>'),
+        t('The GHeL Team</p>'),
+      );
+      $message['body'] = $body;
+      return;
+
+    case 'course_under_review':
+      // A course has been placed under review, thus invalidating the user's achievement.
+      $message['subject'] = t('[!site] A course you have completed is undergoing revision', $variables);
+      $body = array(
+        t("<p>Dear !name,</p>", $variables),
+        t('<p>The course !course is currently undergoing revision, you will need to complete the updated course once it has been republished to re-earn your certificate.</p>', $variables),
+      );
+      if($programs) {
+        $body = array_merge($body, array(
+          t('<p>Additionally, because this course belonged to one or more programs which you previously completed, you will need to complete the course again to earn an up-to-date program certificates. These programs are as follows:</p>'),
+          t('<p>!programs</p>', $variables),
+        ));
+      }
+      $body = array_merge($body, array(
+        t('<p>You will receive an email when the course is available.</p>'),
+        t('<p>Sincerely,<br>'),
+        t('The GHeL Team</p>'),
+      ));
+      $message['body'] = $body;
+      return;
+
+    case 'course_republished':
+      // A course is now ready to be retaken and course and program certificates re-earned
+      $message['subject'] = t('[!site] A revised course is now available', $variables);
+      $body = array(
+        t('<p>Dear !name,</p>', $variables),
+        t('<p>The GHeL course !course has been updated. According to our records you have previously completed this course, but because of the revisions you will need to retake the course in order to earn your certificate again.</p>', $variables),
+      );
+      if($programs) {
+        $body = array_merge($body, array(
+          t('<p>Additionally, because this course belonged to one or more programs which you previously completed, you will need to complete the course again to earn an up-to-date program certificates. These courses are as follows:</p>'),
+          t('<p>!programs</p>', $variables),
+        ));
+      }
+      $body = array_merge($body, array(
+        t('<p>Sincerely,<br>'),
+        t('The GHeL Team</p>'),
+      ));
+      $message['body'] = $body;
+      return;
+  }
+}
+
+/**
+ * Implements hook_achievements_locked().
+ * @param $achievement
+ *  An array of information about the achievement.
+ * @param $uid
+ *  The user ID who is having the achievement taken away.
+ */
+function ghel_achievements_achievements_locked($achievement, $uid) {
+  $account = user_load($uid);
+
+  // If this is a course achievement send an email letting the user know their
+  // course achievement has been revoked.
+  if (strpos($achievement['id'], 'g-c-completion') === 0) {
+
+    // Remove any associated program achievements for the user,
+    // and only send the email out for the program.
+    $courseid = ghel_achievements_get_nid($achievement['id']);
+    if ($programs = ghel_achievements_get_programs($courseid)) {
+      foreach ($programs as $program) {
+        $program_achievement = 'g-p-completion-'. $program->nid . '-0';
+
+        module_invoke_all('achievements_locked', $program_achievement, $uid);
+      }
+    }
+  }
+}
+
+
+/**
+ * Gets all programs a given course belongs to.
+ *
+ * @var int $courseid
+ *   A course id.
+ *
+ * @return array
+ *   Either an empty array or an array of loaded program nodes this courseid
+ *   belongs to.
+ */
+function ghel_achievements_get_programs($courseid) {
+  // See if the user has completed all courses in referencing programs.
+  $query = new EntityFieldQuery();
+  $query->entityCondition('bundle', 'ghel_program')
+    ->fieldCondition('field_ghel_courses', 'target_id', $courseid);
+  $result = $query->execute();
+  if (!empty($result['node'])) {
+    $programs = node_load_multiple(array_keys($result['node']));
+    return $programs;
+  }
+  return array();
+}
+
+/**
+ * Gets valid achievement types per node type
+ *
+ * @param object $node
+ *   The node for which to get achievement types; no args gives all types
+ *
+ * @return array
+ *   An array of achievement types, or false if invalid node type
+ */
+function ghel_achievements_valid_types($node = null) {
+  if(empty($node)) {
+    return array('g-c-start', 'g-c-completion', 'g-f-quiz', 'g-p-completion');
+  }
+  
+  switch ($node->type) {
+    case 'ghel_course':
+      return array('g-c-start', 'g-c-completion', 'g-f-quiz');
+    case 'ghel_program':
+      return array('g-p-completion');
+    default:
+      watchdog('ghel_achievements', 'Error: Invalid node type');
+      return false;
+  }
+}
+
+/**
+ * Implements hook_delete().
+ */
+function ghel_achievements_delete($node) {
+  ghel_achievements_remove($node);
+}
+
+/**
+ * Deletes achievements associated with a node, including quiz and program completion
+ * 
+ * @param object $node
+ *   The node for which to remove achievements
+ *
+ * @param array $types
+ *   Specify specific achievement types to delete for the node
+ */
+function ghel_achievements_remove($node, &$types = array()) {
+  if(empty($types)) {
+    $types = ghel_achievements_valid_types($node);
+  }
+
+  $achievements = array();
+  $completion_nodes = array();
+  $revision = ghel_course_get_revision($node);
+  $i = 0;
+  while ($i <= $revision) {
+    foreach ($types as $type) {
+      $achievements[] = "{$type}-{$node->nid}-{$i}";
+      if ($type == 'g-c-completion') {
+        $completion_nodes[] = $node->nid;
+      }
+    }
+    $i++;
+  }
+
+  if (!empty($achievements)) {
+    foreach ($achievements as $achievement_id) {
+      achievements_delete($achievement_id);
+    }
+  }
+
+  // if we removed any course completions we need to revoke corresponding program achievements too.
+  if (!empty($completion_nodes)) {
+    foreach ($completion_nodes as $nid) {
+      $programs = ghel_achievements_get_programs($nid);
+      foreach ($programs as $program) {
+        $types = array('g-p-completion');
+        ghel_achievements_remove($program, $types);
+      }
+    }
+  }
+}
+
+/**
+ * Gets all achievements of a certain type
+ *
+ * @param string $type
+ *   The type of achievement to get
+ * 
+ * @param int $nid
+ *   Specify a node for which to get achievements of type
+ *
+ * @param int $cutoff
+ *   Specify a cutoff for how long ago the achievement was unlocked
+ *
+ * @return array
+ *   An array of achievement completions hierarchically organized by node ID,
+ *   then user ID, then unlock timestamp
+ */
+function ghel_achievements_get_achievements_of_type($type, $nid = null, $cutoff = null) {
+  $query = db_select('achievement_unlocks', 'au')
+    ->fields('au', array('achievement_id', 'uid', 'timestamp'));
+  if($nid) {
+    $query->condition('au.achievement_id', "{$type}-{$nid}-%", 'LIKE');
+  }
+  else {
+    $query->condition('au.achievement_id', "{$type}-%", 'LIKE');
+  }
+  if($cutoff) {
+    $query->condition('au.timestamp', time() - $cutoff, '>');
+  }
+  $results = $query->execute();
+  $uids_arr = array();
+  foreach($results as $result) {
+    if(!$nid) {
+      $node_id = ghel_achievements_get_nid($result->achievement_id);
+    }
+    else {
+      $node_id = $nid;
+    }
+    $uids_arr[$node_id][$result->uid] = $result->timestamp;
+  }
+
+  return $uids_arr;
+}
+
+/**
+ * Function called whenever a course node is published, placed under review,
+ * or has had a new program added to it
+ *
+ * @param object $node
+ * 
+ * @param string action
+ *   The action performed. Limited to course_published, course_under_review, course_added
+ * 
+ * @param array $programs
+ *   An array of programs associated with the course node
+ */
+function ghel_achievements_workflow_change_ops($node, $action, $program = null) {
+  $course = $node->nid;
+
+  if(!module_exists("ghel_mail_safety")) {
+    // We want to enforce having the mail safety module enabled to avoid
+    // accidentally sending mail after updating code via git
+    watchdog('ghel_achievements', "Error: ghel_mail_safety is not enabled");
+    return;
+  }
+
+  if($action == 'course_published') {
+    if(ghel_achievements_check_is_course_new($course)) {
+      // Administrative workflow sees courses assigned to programs only after
+      // publishing. As long as this holds then we don't have to do anything
+      // when new courses are published. We will instead execute our logic
+      // when this function is called with the 'course_added' action after
+      // the course author adds the course to a program.
+      return;
+    }
+    $action = 'course_republished';
+
+    // If a user has a course achievement when it was only just republished,
+    // then the user must have received the achievement while it was under
+    // review or feedback, since achievements are removed when a course is
+    // unpublished. We remove these achievements at this step to make
+    // absolutely sure nobody has achievements for freshly-published courses.
+    ghel_achievements_remove($node);
+  }
+
+  $function = "ghel_achievements_notify_users_$action";
+  if(!function_exists($function)) {
+    drupal_set_message("Undefined function call: $function", "error", false);
+    watchdog('ghel_achievements', "Error: Undefined function call: $function");
+    return;
+  }
+
+  // Get course:user completion relationships
+  $course_completions = ghel_achievements_get_achievements_of_type('g-c-completion', $course);
+
+  // Get program:user certificate relationships relating to course
+  $programs = ghel_achievements_get_programs($course);
+  $program_completions = array();
+  foreach($programs as $program_node) {
+    $program = $program_node->nid;
+    $program_completions += ghel_achievements_get_achievements_of_type('g-p-completion', $program);
+
+/*
+TODO: Add check for whether any other courses in a program are already in the achievements stack
+      and include a $program_completions entry for this one, as well, so if the first entry that
+      already includes the program get published first, this one will still trigger a notification
+      about program recert.
+*/
+  }
+
+  // Push info to achievements stacks
+  foreach($program_completions as $program => $uids) {
+    foreach($uids as $uid => $_) {
+      ghel_achievements_stack_push($uid, $course, $program);
+      unset($course_completions[$course][$uid]);
+    }
+  }
+
+  foreach($course_completions as $uids) {
+    foreach($uids as $uid => $_) {
+      $program = _ghel_achievements_check_existing_program_revoc($uid, $course);
+      if ($program) { // There was a program revocation, so add it, too
+        ghel_achievements_stack_push($uid, $course, $program);
+        unset($course_completions[$course][$uid]);
+      } else { // Just add the course revocation
+        ghel_achievements_stack_push($uid, $course);
+      }
+    }
+  }
+
+  // Delete user achievements for course and programs
+  ghel_achievements_remove($node);
+
+  $function($course);
+}
+
+/**
+ * Implements hook_node_update().
+ *
+ * When program nodes are updated, check for new courses
+ */
+function ghel_achievements_node_update($node) {
+  if($node->type != 'ghel_program') {
+    return;
+  }
+
+  // Load old node -- node_load loads previous node revision, as hook_node_update
+  // executes before database transactions for node save
+  $program = $node->nid;
+  $prev_node = node_load($program);
+
+  $current_courses = array();
+  foreach($node->field_ghel_courses['und'] as $element) {
+    $current_courses[] = $element['target_id'];
+  }
+
+  $prev_courses = array();
+  foreach($prev_node->field_ghel_courses['und'] as $element) {
+    $prev_courses[] = $element['target_id'];
+  }
+
+  $new_courses = array_diff($current_courses, $prev_courses);
+  foreach($new_courses as $course) {
+    ghel_achievements_notify_users_course_added($course, $program);
+  }
+}
+
+function ghel_achievements_notify_users_course_under_review($course) {
+  $results = ghel_achievements_stack_select($course);
+
+  _ghel_achievements_send_workflow_change_notifications($course, $results, 'course_under_review');
+}
+
+function ghel_achievements_notify_users_course_republished($course) {
+  $results = ghel_achievements_stack_pop($course);
+
+  _ghel_achievements_send_workflow_change_notifications($course, $results, 'course_republished');
+}
+
+function _ghel_achievements_send_workflow_change_notifications($course, $results, $type) {
+  $spool = array();
+  foreach($results as $result) {
+    // If user last accessed site past cutoff, skip them
+    $user = user_load($result->uid);
+    $u_cert_revocation = field_get_items('user', $user, 'field_ghel_cert_revocation');
+    if(empty($u_cert_revocation) || $u_cert_revocation[0]['value'] == false || ghel_mail_safety_user_access_past_cutoff($user) !== false) {
+      continue;
+    }
+    // Associate user program completions for this course with their uid;
+    // empty array indicates no completions
+    if(!empty($result->program)) {
+      $spool[$result->uid][] = $result->program;
+    }
+    elseif(!isset($spool[$result->uid])) {
+      $spool[$result->uid] = array();
+    }
+  }
+
+  $course_node = node_load($course);
+  $params = array();
+  foreach($spool as $uid => $programs) { //unspool
+    $account = user_load($uid);
+    $params['account'] = $account;
+    $params['context']['course'] = $course_node;
+    $params['context']['programs'] = $programs;
+    $message = drupal_mail('ghel_achievements', $type, $account->mail, user_preferred_language($account), $params);
+    if ($message['result']) {
+      watchdog('ghel_achievements', "$type email successfully sent to !mail.", array('!mail' => $account->mail), WATCHDOG_WARNING);
+    }
+    else if ( $message['send'] == FALSE ) {
+      watchdog('ghel_achievements', "$type email to !mail aborted.", array('!mail' => $account->mail), WATCHDOG_WARNING);
+    }
+    else {
+      watchdog('ghel_achievements', "$type email failure for account with address !mail.", array('!mail' => $account->mail), WATCHDOG_WARNING);
+    }
+  }
+}
+
+/**
+ * Notify users that a course has been added to one of their completed programs,
+ * thus revoking their program certification
+ *
+ * N.B.: This should never be called as a result of a workflow change, but only
+ * when a node has has a program added to it (usually immediately after initial
+ * publication)
+ */
+function ghel_achievements_notify_users_course_added($course, $program) {
+  $course_node = node_load($course);
+  $program_node = node_load($program);
+
+  // Get user:program certificate relationships relating to course
+  $program_completions = ghel_achievements_get_achievements_of_type('g-p-completion', $program);
+  // Delete user achievements for program
+  ghel_achievements_remove($program_node);
+
+  // Notify users of program achievement revocation
+  foreach($program_completions[$program] as $uid => $_) {
+    $account = user_load($uid);
+    $u_cert_revocation = field_get_items('user', $account, 'field_ghel_cert_revocation');
+    if(empty($u_cert_revocation) || $u_cert_revocation[0]['value'] == false || ghel_mail_safety_user_access_past_cutoff($account) !== false) {
+      continue;
+    }
+    $params['account'] = $account;
+    $params['context']['course'] = $course_node;
+    $params['context']['program'] = $program_node;
+    $message = drupal_mail('ghel_achievements', 'course_added', $account->mail, user_preferred_language($account), $params);
+    if ($message['result']) {
+      watchdog('ghel_achievements', "course_added email successfully sent to !mail.", array('!mail' => $account->mail), WATCHDOG_WARNING);
+    }
+    else if ( $message['send'] == FALSE ) {
+      watchdog('ghel_achievements', "course_added email to !mail aborted.", array('!mail' => $account->mail), WATCHDOG_WARNING);
+    }
+    else {
+      watchdog('ghel_achievements', "course_added email failure for account with address !mail.", array('!mail' => $account->mail), WATCHDOG_WARNING);
+    }
+  }
+}
+
+/**
+ * Save information on users who have completed courses which are placed under
+ * review. N.B.: "Pushing" in this context is inexact terminology.
+ */
+function ghel_achievements_stack_push($uid, $course, $program = null) {
+  $results = db_insert('ghel_achievements_stack')
+    ->fields(array(
+      'uid' => $uid,
+      'course' => $course,
+      'program' => $program,
+    ))
+    ->execute();
+
+  return $results;
+}
+
+/**
+ * Retrieve information on course and program completions.
+ */
+function ghel_achievements_stack_select($course, $program = null) {
+  $query = db_select('ghel_achievements_stack', 'ga')
+    ->fields('ga', array('uid', 'course', 'program'))
+    ->condition('ga.course', $course);
+  if($program) {
+    $query->condition('ga.program', $program);
+  }
+
+  $results = $query->execute();
+
+  return $results;
+}
+
+/**
+ * Retrieve and then delete information on course completions once reviewed
+ * courses are republished.
+ */
+function ghel_achievements_stack_pop($course) {
+  $results = ghel_achievements_stack_select($course);
+
+  db_delete('ghel_achievements_stack')
+    ->condition('course', $course)
+    ->execute();
+
+  return $results;
+}
+
+/**
+ * Check if a course is totally "new," at least as far as achievement and
+ * notification logic is concerned
+ */
+function ghel_achievements_check_is_course_new($course) {
+  // We will assume that a course is new if there is no information in the
+  // stack or the achievements table pertaining to it.
+  $new = ghel_achievements_stack_select($course)==FALSE
+      && ghel_achievements_get_achievements_of_type('g-c-start', $course)==FALSE;
+
+  return($new);
+}
+
+/**
+ * Generate a URL like <a href="http://ghel/node/nid">Node Title</a>
+ */
+function _ghel_achievements_node_link($node) {
+  if(empty($node)) {
+    watchdog("ghel_achievements", 'Error: Empty $node in _ghel_achievements_node_link');
+  }
+  try {
+    $eUri=entity_uri('node', $node);
+    return l(entity_label('node', $node), url($eUri['path'], array('absolute' => true)));
+  }
+  catch(Exception $e) {
+    dsm("_ghel_achievements_node_link failed. \$node empty: " . (empty($node) ? "true" : "false"));
+    throw $e;
+  }
+}
+/**
+ * Determine if all other courses in a program are published or not. Used to determine
+ * whether or not to include a notice about the program in notifications.
+ *
+ * @param string $program_id
+ * @param string $course_id
+ * @param string $key
+ *   The action being performed which we're preparing to send a notice for.
+ *
+ * @return bool
+ *   FALSE if there are other courses in the program that are not published. TRUE otherwise.
+ */
+function _ghel_achievements_check_all_courses_published($program_id, $course_id, $key = 'course_republished') {
+  $query = db_select('field_data_field_ghel_courses', 'p');
+  $query->join('workflow_node', 'w', 'p.field_ghel_courses_target_id = w.nid');
+  $query
+    ->fields('p', array('field_ghel_courses_target_id'))
+    ->condition('p.entity_id', $program_id)
+    ->condition('w.sid', GHEL_WORKFLOW_STATE_PUBLISHED, '!=');
+  if ($key == 'course_under_review') {
+    $query->condition('p.field_ghel_courses_target_id', $course_id, '!=');
+  }
+  $result = $query->execute();
+  $number_of_rows = $result->rowCount();
+  if ($number_of_rows > 0) {
+    return FALSE;
+  }
+  return TRUE;
+}
+
+/**
+ * Get a listing of nids for other courses in the same program.
+ */
+function _ghel_achievements_get_other_courses_in_program($course_id) {
+  $result = db_query("SELECT p.field_ghel_courses_target_id FROM field_data_field_ghel_courses p INNER JOIN field_data_field_ghel_courses c ON p.entity_id = c.entity_id WHERE c.field_ghel_courses_target_id = :course_id AND p.field_ghel_courses_target_id != :orig_course_id", array(':course_id' => $course_id, 'orig_course_id' => $course_id));
+  $courses = array();
+  foreach ($result as $record) {
+    $courses[] = $record->field_ghel_courses_target_id;
+  }
+  return $courses;
+}
+
+/**
+ * Checks if another course in the same program includes a program revocation in the stack, so we can
+ * note that this course is also part of the program.
+ */
+function _ghel_achievements_check_existing_program_revoc($uid, $course) {
+  $courses = _ghel_achievements_get_other_courses_in_program($course);
+  if (count($courses) > 1) {
+    return FALSE;
+  }
+  $program = FALSE;
+  foreach ($courses as $course) {
+    $results = ghel_achievements_stack_select($course);
+    foreach ($results as $record) {
+      if ($record->program) {
+        $program = $record->program;
+         continue;
+      }
+    }
+  }
+  return $program;
+}

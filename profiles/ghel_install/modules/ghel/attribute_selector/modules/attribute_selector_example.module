@@ -1,0 +1,140 @@
+<?php
+/**
+ * @file
+ * Example attribute selector module provides roll assignment widget.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function attribute_selector_example_menu() {
+  $items['example/attribute-selector'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('attribute_selector_example_form'),
+    'access arguments' => array('administer users'),
+  );
+  return $items;
+}
+
+/**
+ * Example for shows the use of the attribute_selector widget.
+ */
+function attribute_selector_example_form($form, &$form_state) {
+  $query = db_select('role', 'r');
+  $query->addTag('translatable');
+  $query->fields('r', array('rid', 'name'));
+  $query->condition('rid', DRUPAL_ANONYMOUS_RID, '!=');
+  $query->condition('rid', DRUPAL_AUTHENTICATED_RID, '!=');
+  $query->orderBy('weight');
+  $query->orderBy('name');
+  $roles = $query->execute()->fetchAllKeyed();
+  $form = array(
+    'testelement' => array(
+      '#type' => 'attribute_selector',
+      '#attribute' => $roles,
+      '#callbacks' => array(
+        '#candidates' => 'attribute_selector_example_candidates_callback',
+        '#incumbents' => 'attribute_selector_example_incumbents_callback',
+        '#add' => 'attribute_selector_example_add_submit',
+        '#remove' => 'attribute_selector_example_remove_submit',
+      ),
+      // Passed on to the the select widget(s) for candidates/incumbents the
+      // larger of #size or the valid candidates/incumbents is used.
+      '#size' => 10,
+      // These values below will be used for the individual widgets, all of
+      // these are passed through t() with the varaible @attribute reflecting
+      // the currently selected attribute.
+      '#sub-title' => array(
+        '#candidates' => 'Users',
+        '#attribute' => 'Roles',
+        '#incumbents' => '@attribute\'s',
+        '#add' => 'Add "@attribute" Role ⇒',
+        '#remove' => '⇐ Remove "@attribute" role',
+      ),
+      '#title' => t('This is the widget title'),
+      '#description' => t('This is the widget description Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod
+tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse
+cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
+proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'),
+    ),
+  );
+  return $form;
+}
+
+/**
+ * This callback is responsible for providing the list of available candidates.
+ *
+ * The function name is arbitrary and set via:
+ * $form['ELEMENTNAME']['#callbacks']['candidates']
+ */
+function attribute_selector_example_candidates_callback($attribute, $element, &$form_state) {
+  // @todo cache the call but also trigger a reset on form submission
+  // $candidates = &drupal_static(__FUNCTION__);
+  if (empty($candidates)) {
+    $candidates = db_select('users', 'u')
+      ->fields('u', array('uid', 'name'))
+      ->condition('status', 1)
+      ->condition('u.uid', array(0, 1), 'NOT IN')
+      ->orderBy('u.name')
+      ->execute()
+      ->fetchAllKeyed();
+  }
+
+  $incumbents = attribute_selector_example_incumbents_callback($attribute, $element, $form_state);
+
+  return array_diff_key($candidates, $incumbents);
+}
+
+/**
+ * Thie callback is repsonsible for providing the list of available incumbents.
+ */
+function attribute_selector_example_incumbents_callback($attribute, $element, &$form_state) {
+  // @todo cache the call but also trigger a reset on form submission
+  // $incumbents = &drupal_static(__FUNCTION__);
+  if (!isset($incumbents[$attribute])) {
+    $query = db_select('users', 'u');
+    $query->join('users_roles', 'ur', 'ur.uid = u.uid');
+    $incumbents[$attribute] = $query->fields('u', array('uid', 'name'))
+      ->condition('u.status', 1)
+      ->condition('ur.rid', $attribute)
+      ->condition('u.uid', array(0, 1), 'NOT IN')
+      ->orderBy('u.name')
+      ->execute()
+      ->fetchAllKeyed();
+  }
+  return $incumbents[$attribute];
+}
+
+/**
+ * Submit handler to add role to selected candidate.
+ */
+function attribute_selector_example_add_submit($form, &$form_state) {
+  $button = $form_state['triggering_element'];
+  if (!empty($button['#elementname'])) {
+    $field = $button['#elementname'];
+    $values = $form_state['values'][$field];
+
+    // Add the given role to the selected users.
+    user_multiple_role_edit($values['candidates'], 'add_role', $values['attribute']);
+
+    $form_state['rebuild'] = TRUE;
+  }
+}
+
+/**
+ * Submit handler to remove role to selected candidate.
+ */
+function attribute_selector_example_remove_submit($element, &$form_state) {
+  $button = $form_state['triggering_element'];
+  if (!empty($button['#elementname'])) {
+    $field = $button['#elementname'];
+    $values = $form_state['values'][$field];
+
+    // Remove the given role to the selected users.
+    user_multiple_role_edit($values['incumbents'], 'remove_role', $values['attribute']);
+
+    $form_state['rebuild'] = TRUE;
+  }
+}

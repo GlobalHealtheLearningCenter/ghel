@@ -1,0 +1,25 @@
+<?php
+
+function nodeIDtitle_lingotek_pre_upload($lingo_obj) {
+	$title = $lingo_obj->getTitle();
+
+	if ($lingo_obj->getEntityType() == 'node')
+	{ $entity = $lingo_obj->getEntity(); // Query for stuff you want to add to the title $extra_terms = array('label1', 'label2', 'label3'); $lingo_obj->setTitle($title . ' (' . implode(', ', $extra_terms) . ')'); }
+	  
+	  $content_type = '['.$entity->type.'] ';
+	  $extra_terms = array('NodeID: '. $entity->nid); 
+	  $lingo_obj->setTitle($content_type. $title . ' (' . implode(', ', $extra_terms) . ')'); 
+
+	}
+
+	elseif ($lingo_obj->getEntityType() == 'taxonomy_term')
+	{ //Do Nothing
+
+	}
+
+	elseif ($lingo_obj->getEntityType() == 'config_set')
+	{ // Make some modification to the titles for config translation, if desired }
+
+	}
+
+}

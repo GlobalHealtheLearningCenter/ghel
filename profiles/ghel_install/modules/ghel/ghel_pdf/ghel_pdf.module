@@ -1,0 +1,86 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function ghel_pdf_menu() {
+  $items = array();
+
+  $items['course/%node/pdf'] = array(
+    'page callback' => 'ghel_pdf_view_course',
+    'page arguments' => array(1),
+    'access arguments' => array('access content'),
+  );
+  return $items;
+}
+
+function ghel_pdf_view_course($course) {
+  if ($course->type == 'ghel_course') {
+    $view = views_get_view('ghel_print_course');
+    if (is_object($view)) {
+      $view->set_arguments(array($course->nid));
+      // prune contextual links region.
+      $content = htmlentities($view->preview('page'), NULL, 'UTF-8');
+      $content = str_replace("&nbsp;", " ", $content);
+      $content = html_entity_decode($content);
+
+
+      $variables = array(
+        'head' => '',
+        'head_title' => check_plain($course->title),
+        'styles' => '',
+        'scripts' => '',
+        'attributes' => '',
+        'content' => $content,
+        'page_bottom' => '',
+      );
+      $variables['language'] = $GLOBALS['language'];
+      $variables['language']->dir = $GLOBALS['language']->direction ? 'rtl' : 'ltr';
+
+      $content = theme('epub_export', $variables);
+
+      // There doesn't seem to be a straightforward way to get this to avoid
+      // outputting contextual links. Tried: $view->hide_admin_links = TRUE;
+      $dom = new DOMDocument('1.0', 'utf-8');
+      $dom->preserveWhiteSpace = FALSE;
+      $dom->validateOnParse = TRUE;
+      $dom->strictErrorChecking = FALSE;
+
+      // We use adjust libxml error reporting to work around limitations with
+      // DOMDocument's limitations in handling HTML5
+      libxml_use_internal_errors(TRUE);
+      $dom->loadHTML($content);
+      libxml_clear_errors();
+
+      $xpath = new DOMXpath($dom);
+      $classes = array('contextual-links-wrapper');
+      // Remove any DOM elements and children based on class.
+      foreach ($classes as $class) {
+        // Remove DOM elements containing the list of classes.
+        $query = "//*[contains(@class, '" . $class . "')]";
+        $entries = $xpath->query($query);
+        if (!empty($entries)) {
+          foreach ($entries as $entry) {
+            try {
+              $entry->parentNode->removeChild($entry);
+            }
+            catch (Exception $e) {
+              throw $e;
+            }
+          }
+        }
+      }
+
+      $rendered = $dom->saveHTML();
+
+      //file_transfer($uri, $headers);
+      // Strip control characters and problematic chars.
+      $filename = preg_replace('/[\x00-\x1F]/u', '_', $course->title);
+      $filename = str_replace(array(':', '*', '?', '"', '<', '>', '|', '\\', '/', '!', '@'), '_', $filename);
+
+      $val = pdf_using_mpdf_api($rendered, $filename);
+    }
+    drupal_page_footer();
+  }
+  drupal_not_found();
+}

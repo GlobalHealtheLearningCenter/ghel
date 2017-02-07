@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the GheL ShareThis feature.
+ */
+
+include_once 'ghel_sharethis.features.inc';

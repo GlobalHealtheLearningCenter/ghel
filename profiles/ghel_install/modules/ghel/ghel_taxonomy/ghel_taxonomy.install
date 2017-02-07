@@ -1,0 +1,15 @@
+<?php
+
+/**
+ * Implements hook_update().
+ */
+function ghel_taxonomy_update_7100() {
+
+  db_update('system')
+    ->fields(array(
+      'weight' => 1,
+    ))
+    ->condition('name', 'ghel_taxonomy')
+    ->execute();
+  return t('GHeL taxonomy module updated');
+}

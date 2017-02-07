@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Translation content type feature.
+ */
+
+include_once 'ghel_translation.features.inc';

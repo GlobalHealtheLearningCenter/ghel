@@ -1,0 +1,16 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Program feature.
+ */
+
+include_once 'ghel_program.features.inc';
+
+/**
+ * Implements hook_node_delete().
+ */
+function ghel_program_node_delete($node) {
+  if ($node->type == 'ghel_program') {
+    ghel_achievements_delete($node);
+  }
+}

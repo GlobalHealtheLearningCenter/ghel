@@ -1,0 +1,245 @@
+<?php
+/**
+ * @file
+ * Define custom hook_install for GHeL
+ */
+
+/**
+ * Implements hook_install().
+ */
+function ghel_actions_config_install() {
+  $t = get_t();
+  db_insert('trigger_assignments')
+    ->fields(array(
+      'hook' => 'node_insert',
+      'aid' => 'ghel_actions_create_course_action',
+      'weight' => 1,
+    ))->execute();
+
+  db_insert('trigger_assignments')
+    ->fields(array(
+      'hook' => 'node_insert',
+      'aid' => 'ghel_actions_create_section_action',
+      'weight' => 2,
+    ))->execute();
+
+  db_insert('trigger_assignments')
+    ->fields(array(
+      'hook' => 'node_update',
+      'aid' => 'ghel_actions_remove_program_achievements',
+      'weight' => 1,
+    ))->execute();
+
+  // Add our custom worklfow actions.
+  $workflows = workflow_get_workflows_by_name('Course Page Status');
+  $states = workflow_get_workflow_states_by_wid($workflows->wid);
+  foreach ($states as $state) {
+    switch ($state->state) {
+      case 'Complete':
+        $function = 'ghel_actions_set_course_content_workflow_action';
+        $parameters = array(
+          'comment' => 'Workflow state changed due to course being "Published"',
+          'sid' => $state->sid,
+        );
+        $label = 'Set all course content to "Complete"';
+        $aid = actions_save($function, 'node', $parameters, $label);
+        variable_set('ghel_actions_complete', $aid);
+        break;
+      case 'Review and Feedback':
+        $function = 'ghel_actions_set_course_content_workflow_action';
+        $parameters = array(
+          'comment' => 'Workflow state changed due to course being set to "Feedback"',
+          'sid' => $state->sid,
+        );
+        $label = 'Set all course content to "Review and Feedback"';
+        $aid = actions_save($function, 'node', $parameters, $label);
+        variable_set('ghel_actions_feedback', $aid);
+        break;
+
+      case 'Revision':
+        $function = 'ghel_actions_set_course_content_workflow_action';
+        $parameters = array(
+          'comment' => 'Workflow state changed due to course going "Under Review"',
+          'sid' => $state->sid,
+        );
+        $label = 'Set all course content to "Revision"';
+        $aid = actions_save($function, 'node', $parameters, $label);
+        variable_set('ghel_actions_under_review', $aid);
+        break;
+
+    }
+  }
+  // Now add our trigger assignments.
+  $assignments = _ghel_actions_config_course_content_assignments();
+  foreach ($assignments as $assignment) {
+    $transition = workflow_get_workflow_transitions_by_sid_target_sid($assignment['sid'], $assignment['target_sid']);
+    db_insert('trigger_assignments')
+      ->fields(array(
+        'hook' => 'workflow-ghel_course-' . $transition->tid,
+        'aid' => $assignment['aid'],
+        'weight' => $assignment['weight'],
+    ))->execute();
+  }
+
+  // Now add our comment assignments.
+  $types = ghel_course_get_course_content_types();
+  $assignments = _ghel_actions_config_comment_assignments();
+  foreach ($assignments as $assignment) {
+    foreach ($types as $type) {
+      foreach ($assignment['sids'] as $sid) {
+        $transition = workflow_get_workflow_transitions_by_sid_target_sid($sid, $assignment['target_sid']);
+        if (empty($transition)) {
+          drupal_set_message('empty transition for ' . $sid . ' to ' . $assignment['target_sid']);
+        }
+        else {
+          db_insert('trigger_assignments')
+            ->fields(array(
+              'hook' => 'workflow-' . $type . '-' . $transition->tid,
+              'aid' => $assignment['aid'],
+              'weight' => 1,
+            )
+          )->execute();
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Return a list of course content trigger assignements we want.
+ */
+function _ghel_actions_config_course_content_assignments() {
+  $workflows = workflow_get_workflows_by_name('Course Status');
+  $states = workflow_get_workflow_states_by_wid($workflows->wid);
+  $sids = array();
+  foreach ($states as $state) {
+    $sids[$state->state] = $state->sid;
+  }
+
+  $assignments = array(
+    array(
+      'sid' => $sids['Under Review'],
+      'target_sid' => $sids['Published'],
+      'aid' => variable_get('ghel_actions_complete', 0),
+      'weight' => 1,
+    ),
+    array(
+      'sid' => $sids['Feedback'],
+      'target_sid' => $sids['Published'],
+      'aid' => variable_get('ghel_actions_complete', 0),
+      'weight' => 2,
+    ),
+    array(
+      'sid' => $sids['Under Review'],
+      'target_sid' => $sids['Feedback'],
+      'aid' => variable_get('ghel_actions_feedback', 0),
+      'weight' => 4,
+    ),
+    array(
+      'sid' => $sids['Archived'],
+      'target_sid' => $sids['Feedback'],
+      'aid' => variable_get('ghel_actions_feedback', 0),
+      'weight' => 5,
+    ),
+    array(
+      'sid' => $sids['Archived'],
+      'target_sid' => $sids['Under Review'],
+      'aid' => variable_get('ghel_actions_under_review', 0),
+      'weight' => 1,
+    ),
+    array(
+      'sid' => $sids['Published'],
+      'target_sid' => $sids['Under Review'],
+      'aid' => variable_get('ghel_actions_under_review', 0),
+      'weight' => 1,
+    ),
+  );
+  return $assignments;
+}
+
+/**
+ * Returns a list of comment trigger assignments we want.
+ */
+function _ghel_actions_config_comment_assignments() {
+
+  $workflows = workflow_get_workflows_by_name('Course Page Status');
+  $states = workflow_get_workflow_states_by_wid($workflows->wid);
+  $sids = array();
+  foreach ($states as $state) {
+    $sids[$state->state] = $state->sid;
+  }
+
+  $assignments = array(
+    // When going into 'Revision' open comments.
+    array(
+      'sids' => array(
+        $sids['(creation)'],
+        $sids['Review and Feedback'],
+        $sids['Approved'],
+        $sids['Complete'],
+      ),
+      'target_sid' => $sids['Revision'],
+      'aid' => 'ghel_actions_open_comments',
+    ),
+    // When going into 'Revision and Feedback' open comments.
+    array(
+      'sids' => array(
+        $sids['(creation)'],
+        $sids['Revision'],
+        $sids['Approved'],
+        $sids['Complete'],
+      ),
+      'target_sid' => $sids['Review and Feedback'],
+      'aid' => 'ghel_actions_open_comments',
+    ),
+    // When going into 'Complete' close comments.
+    array(
+      'sids' => array(
+        $sids['(creation)'],
+        $sids['Revision'],
+        $sids['Review and Feedback'],
+        $sids['Approved'],
+      ),
+      'target_sid' => $sids['Complete'],
+      'aid' => 'ghel_actions_hide_comments',
+    ),
+  );
+  return $assignments;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function ghel_actions_config_uninstall() {
+
+  $actions = array(
+    'ghel_actions_complete',
+    'ghel_actions_feedback',
+    'ghel_actions_under_review',
+  );
+
+  foreach ($actions as $action) {
+    $aid = variable_get($action, 0);
+    actions_delete($aid);
+    db_delete('trigger_assignments')->condition('aid', $aid)->execute();
+    variable_del($action);
+  }
+
+  $aids = array(
+    'ghel_actions_create_course_action',
+    'ghel_actions_create_section_action',
+    'ghel_actions_hide_comments',
+    'ghel_actions_open_comments',
+    'ghel_actions_remove_program_achievements',
+    'ghel_actions_feedback',
+    'ghel_actions_under_review',
+  );
+  db_delete('trigger_assignments')->condition('aid', $aids)->execute();
+
+  $hooks = array(
+    'workflow-ghel_course%',
+  );
+  db_delete('trigger_assignments')->condition('hook', $hooks, 'LIKE')->execute();
+
+
+}

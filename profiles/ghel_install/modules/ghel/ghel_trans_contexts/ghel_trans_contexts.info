@@ -1,0 +1,12 @@
+name = Translation contexts
+description = Contexts used for Translations
+core = 7.x
+package = Translations
+version = 7.x-0.1
+project = ghel_trans_contexts
+dependencies[] = context
+dependencies[] = ghel_trans_views
+dependencies[] = views
+features[context][] = ghel_trans_context
+features[ctools][] = context:context:3
+features[features_api][] = api:2

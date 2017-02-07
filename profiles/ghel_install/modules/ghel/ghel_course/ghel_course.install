@@ -1,0 +1,172 @@
+<?php
+
+/**
+ * Implements hook_schema
+ */
+function ghel_course_schema() {
+  $schema['ghel_course_last_page_view'] = array(
+    'description' => 'Table to track user course page views',
+    'fields' => array(
+      'uid' => array(
+        'description' => 'The user id',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'course_nid' => array(
+        'description' => 'The course nid',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'page_nid' => array(
+        'description' => 'The nid of the last viewed page in course_nid',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'foreign keys' => array(
+      'uid' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+      'course_nid' => array(
+        'table' => 'node',
+        'columns' => array('course_nid' => 'nid'),
+      ),
+      'page_nid' => array(
+        'table' => 'node',
+        'columns' => array('page_nid' => 'nid'),
+      ),
+    ),
+    'primary key' => array('uid', 'course_nid'),
+  );
+  return $schema;
+}
+
+/**
+ * Migrates user page views to custom table.
+ */
+function ghel_course_update_7100(&$sandbox) {
+  // Make sure our table is setup
+  if (!db_table_exists('ghel_course_last_page_view')) {
+    drupal_install_schema('ghel_course');
+  }
+
+  // Initiliaze the batch if we haven't already.
+  if (empty($sandbox['remaining'])) {
+    $sandbox['remaining'] =  db_select('users', 'u')
+      ->fields('u', array('uid'))
+      ->condition('data', '%ghel_course_page_view%', 'LIKE')
+      ->execute()
+      ->fetchCol();
+    $sandbox['progress'] = 0;
+    $sandbox['total'] = count($sandbox['remaining']);
+  }
+
+  $i = 1;
+  while ($i <= 50 && count($sandbox['remaining'] >= 1)) {
+    $uid = array_pop($sandbox['remaining']);
+    $user = user_load($uid);
+
+    if (!empty($user)) {
+      // Add the data to the new table
+      foreach ($user->data['ghel_course_page_view'] as $course_nid => $page_nid) {
+        db_merge('ghel_course_last_page_view')
+          ->key(array('uid' => $uid, 'course_nid' => $course_nid))
+          ->fields(array(
+            'uid' => $uid,
+            'course_nid' => $course_nid,
+            'page_nid' => $page_nid,
+          ))
+          ->execute();
+      }
+
+      // Remove the data from the user object
+      unset($user->data['ghel_course_page_view']);
+      $edit['data'] = $user->data;
+      user_save($user, $edit);
+    }
+
+    $sandbox['progress']++;
+    $i++;
+  }
+
+  $sandbox['#finished'] = empty($sandbox['total']) ? 1 : ((int)$sandbox['progress'] / (int)$sandbox['total']);
+
+  return t('Migrated user page views to custom table.');
+}
+
+/**
+ * Removes course expert og role
+ */
+function ghel_course_update_7101(&$sandbox) {
+  // 12 is the role id corresponding to "course expert"
+  og_role_delete(12);
+}
+
+/**
+ * Ensure all course content has appropriate visibility settings.
+ */
+function ghel_course_update_7102(&$sandbox) {
+  // make sure the constants we need are defined
+  module_load_include('module', 'ghel_workflow', 'ghel_workflow');
+  module_load_include('module', 'og_access', 'og_access');
+
+  // Initiliaze the batch if we haven't already.
+  if (empty($sandbox['remaining'])) {
+    $types = ghel_course_get_course_content_types();
+    $types[] = 'ghel_course';
+
+    // Get the total number of nodes we have to update.
+    $result = db_select('node', 'n')
+      ->fields('n', array('nid'))
+      ->condition('type', $types, 'IN')
+      ->execute()->fetchCol();
+
+    $sandbox['remaining'] = $result;
+    $sandbox['progress'] = 0;
+    $sandbox['total'] = count($sandbox['remaining']);
+  }
+
+  $i = 1;
+  while ($i <= 50 && count($sandbox['remaining']) >= 1) {
+    $nid = array_pop($sandbox['remaining']);
+    $node = node_load($nid);
+
+    switch ($node->type) {
+      case 'ghel_course':
+        if ($node->workflow == GHEL_WORKFLOW_STATE_PUBLISHED) {
+          $node->group_access[LANGUAGE_NONE][0]['value'] = GHEL_WORKFLOW_OG_PUBLIC;
+        }
+        else {
+          $node->group_access[LANGUAGE_NONE][0]['value'] = GHEL_WORKFLOW_OG_PRIVATE;
+        }
+        break;
+
+      default:
+        $course = node_load($node->field_ghel_course[LANGUAGE_NONE][0]['target_id']);
+
+        if ($course->workflow == GHEL_WORKFLOW_STATE_PUBLISHED) {
+          $node->group_content_access[LANGUAGE_NONE][0]['value'] = OG_CONTENT_ACCESS_PUBLIC;
+        }
+        else {
+          $node->group_content_access[LANGUAGE_NONE][0]['value'] = OG_CONTENT_ACCESS_PRIVATE;
+        }
+        break;
+
+    }
+    node_save($node);
+
+    $sandbox['progress']++;
+    $i++;
+  }
+
+  $sandbox['#finished'] = empty($sandbox['total']) ? 1 : ((int)$sandbox['progress'] / (int)$sandbox['total']);
+
+  return t('Updated course and course content visibility.');
+}

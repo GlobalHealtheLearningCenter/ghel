@@ -1,0 +1,306 @@
+<?php
+
+/**
+ * Implements hook_form_alter().
+ */
+function formblock_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'node_type_form' && isset($form['#node_type']->type)) {
+    $form['formblock'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Form block'),
+      '#group' => 'additional_settings',
+      '#attributes' => array(
+        'class' => array('formblock-node-type-settings-form'),
+      ),
+      '#attached' => array(
+        'js' => array(drupal_get_path('module', 'formblock') . '/formblock.js'),
+      ),
+    );
+    $form['formblock']['formblock_expose'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enable data entry from a block'),
+      '#default_value' => variable_get('formblock_expose_' . $form['#node_type']->type, 0),
+      '#description' => t('Enable this option to make the entry form for this content type available as a block.'),
+    );
+    $form['formblock']['formblock_show_help'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show submission guidelines'),
+      '#default_value' => variable_get('formblock_show_help_' . $form['#node_type']->type, 0),
+      '#description' => t('Enable this option to show the submission guidelines in the block above the form.'),
+      '#states' => array(
+        'visible' => array(
+          ':input[name="formblock_expose"]' => array('checked' => TRUE),
+        ),
+      ),
+    );
+  }
+  elseif (module_exists('editablefields') && $form_id == 'field_ui_field_edit_form') {
+    $form['instance']['formblock_expose'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enable data entry from a block'),
+      '#default_value' => TRUE,
+      '#default_value' => empty($form['#instance']['formblock_expose']) ? FALSE : TRUE,
+      '#description' => t('Enable this option to make the form for this field available as a block.'),
+    );
+  }
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function formblock_block_info() {
+  $blocks = array();
+
+  foreach (node_type_get_names() as $type => $name) {
+    if (variable_get('formblock_expose_' . $type, 0)) {
+      $blocks[$type] = array(
+        'info' => t('@name form block', array('@name' => $name)),
+        'cache' => DRUPAL_NO_CACHE,
+      );
+    }
+  }
+
+  $hashes = array();
+
+  foreach (field_read_instances() as $instance) {
+    if (!empty($instance['formblock_expose'])) {
+      $delta = implode('-', array(
+        'field',
+        $instance['entity_type'],
+        $instance['bundle'],
+        $instance['field_name'],
+      ));
+
+      // block.module delta has a limit of 32, but we may need to store more
+      // than 32 chars. Create a hash lookup via md5 hashes.
+      if (strlen($delta) >= 32) {
+        $hash = md5($delta);
+        $hashes[$hash] = $delta;
+      }
+      else {
+        $hash = $delta;
+      }
+
+      $blocks[$hash] = array(
+        'info' => t('@entity_type:@bundle:@field_name field form block', array(
+                  '@entity_type' => $instance['entity_type'],
+                  '@bundle' => $instance['bundle'],
+                  '@field_name' => $instance['field_name'],
+                )),
+        'cache' => DRUPAL_NO_CACHE,
+      );
+    }
+  }
+  variable_set('formblock_block_hashes', $hashes);
+
+  $blocks['user_register'] = array(
+    'info' => t('User registration form'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+  if (module_exists('contact')) {
+    $blocks['contact_site'] = array(
+      'info' => t('Site-wide contact form'),
+      'cache' => DRUPAL_NO_CACHE,
+    );
+  }
+  $blocks['user_password_request'] = array(
+    'info' => t('Request new password form'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+
+  if (module_exists('comment')) {
+    $blocks['comment'] = array(
+      'info' => t('Comment form'),
+      'cache' => DRUPAL_NO_CACHE,
+    );
+  }
+
+  if (module_exists('workflow')) {
+    $blocks['workflow'] = array(
+      'info' => t('Workflow form'),
+      'cache' => DRUPAL_NO_CACHE,
+    );
+  }
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function formblock_block_view($delta = '') {
+  // if the delta is 32 this should be an md5 hash
+  if (strlen($delta) == 32) {
+    $hashes = variable_get('formblock_block_hashes', array());
+    if (!empty($hashes[$delta])) {
+      $delta = $hashes[$delta];
+    }
+  }
+
+  switch ($delta) {
+    case 'user_register':
+      global $user;
+      // Don't display the form to logged in users or if registration is disabled
+      if (!$user->uid && variable_get('user_register', 1)) {
+        drupal_add_css(drupal_get_path('module', 'formblock') . '/formblock.css', 'module', 'all');
+        return array(
+          'subject' => t('Create new account'),
+          'content' => drupal_get_form('user_register_form')
+        );
+      }
+      break;
+    case 'user_password_request':
+      global $user;
+      // Don't display the form to logged in users
+      if (!$user->uid) {
+        drupal_add_css(drupal_get_path('module', 'formblock') . '/formblock.css', 'module', 'all');
+        module_load_include('inc', 'user', 'user.pages');
+        return array(
+          'subject' => t('Request new password'),
+          'content' => drupal_get_form('user_pass'),
+        );
+      }
+      break;
+    case 'contact_site':
+      if (user_access('access site-wide contact form') && module_exists('contact')) {
+        if (!flood_is_allowed('contact', variable_get('contact_hourly_threshold', 3))) {
+          $content = t("You cannot send more than %number messages per hour. Please try again later.", array('%number' => variable_get('contact_hourly_threshold', 3)));
+        }
+        else {
+          drupal_add_css(drupal_get_path('module', 'formblock') . '/formblock.css', 'module', 'all');
+          module_load_include('inc', 'contact', 'contact.pages');
+          $content = drupal_get_form('contact_site_form');
+        }
+        return array(
+          'subject' => t('Contact'),
+          'content' => $content,
+        );
+      }
+      break;
+    case 'comment':
+      module_load_include('inc', 'comment', 'comment.pages');
+      $node = menu_get_object('node');
+      drupal_alter('formblock_commentblock', $node);
+
+      if (!empty($node) && node_access('view', $node) && $node->comment == COMMENT_NODE_OPEN && user_access('post comments')) {
+        if (!empty($node->nid) && !empty($node->type)) {
+          // We don't call comment_reply() directly as it may include other
+          // unwanted elements. Also only comments directly to a node and not
+          // other comments are allowed (pid = NULL).
+          $edit = array(
+            'nid' => $node->nid,
+            'pid' => NULL,
+          );
+          $content['comment_form'] = drupal_get_form("comment_node_{$node->type}_form", (object) $edit);
+          return array(
+            'subject' => t('Comment'),
+            'content' => $content,
+          );
+        }
+      }
+      break;
+    case 'workflow':
+      $node = menu_get_object('node');
+
+      // allow other modules to adjust our loaded node object.
+      drupal_alter('formblock_workflowblock', $node);
+      module_load_include('inc', 'workflow', 'workflow.pages');
+      if (!empty($node) && workflow_node_tab_access($node)) {
+        drupal_add_css(drupal_get_path('module', 'formblock') . '/formblock.css', 'module', 'all');
+        $workflow = workflow_get_workflow_type_map_by_type($node->type);
+        foreach (workflow_get_workflow_states() as $data) {
+          $states[$data->sid] = check_plain(t($data->state));
+        }
+        $deleted_states = array();
+        $options = array('status' => 0);
+        foreach (workflow_get_workflow_states($options) as $data) {
+          $deleted_states[$data->sid] = check_plain(t($data->state));
+        }
+        $current = workflow_node_current_state($node);
+        // theme_workflow_current_state() must run state through check_plain().
+        $current_state = theme('workflow_current_state', array('state_name' => $states[$current]));
+        $output = t('Current state: !state', array('!state' => $current_state));
+        $form = drupal_get_form('workflow_tab_form', $node, $workflow->wid, $states, $current);
+        $output .= drupal_render($form);
+        return array(
+          'subject' => t('Workflow'),
+          'content' => $output,
+        );
+      }
+      break;
+    default:
+      // Either a node or a field form block
+      return formblock_get_block($delta);
+  }
+}
+
+/**
+ * Generate a block containing a node entry form.
+ */
+function formblock_get_block($type) {
+  if (strpos($type, 'formblock_expose_') === 0) {
+    if (node_access('create', $type) && variable_get('formblock_expose_' . $type, 0)) {
+      $block = array();
+      // Include page handler for node_add()
+      module_load_include('inc', 'node', 'node.pages');
+      // Note title before rendering of form.
+      $title = drupal_get_title();
+      $form = node_add($type);
+      // Restore title, which will have been overridden.
+      drupal_set_title($title);
+      $node_type = node_type_load($type);
+      if (variable_get('formblock_show_help_' . $type, 0)) {
+        $block['content']['help'] = array('#markup' => !empty($node_type->help) ? '<p>' . filter_xss_admin($node_type->help) . '</p>' : '');
+      }
+      $block['subject'] = t('@type form', array('@type' => $node_type->name));
+      $block['content']['form'] = $form;
+      return $block;
+    }
+  }
+  elseif (module_exists('editablefields') && strpos($type, 'field-') === 0) {
+    // Get parameters related to what block fields are being requested
+    list($junk, $entity_type, $request_bundle, $field_name) = explode('-', $type);
+
+    // Grab the current active entity as a starting point
+    $entity = menu_get_object();
+
+    $instances = field_read_instances(array(
+      'entity_type' => $entity_type,
+      'bundle' => $request_bundle,
+      'field_name' => $field_name,
+    ));
+    $instance = reset($instances);
+
+    // Allow other modules to suggest a different entity
+    drupal_alter('formblock_field_form_object', $entity, $instance);
+    if (!empty($entity) && !empty($instance) && entity_access('update', $entity->formblock_entity_type, $entity)) {
+      list($id, $vid, $bundle) = entity_extract_ids($entity->formblock_entity_type, $entity);
+      $field = field_info_field($instance['field_name']);
+
+      // make sure everything is consistent with what was requested.
+      if (!empty($field) && $entity->formblock_entity_type == $entity_type &&
+        $request_bundle == $bundle && isset($entity->{$instance['field_name']})) {
+        // @todo is this okay here?
+        $langcode = $entity->language;
+        $display = $instance['display']['default'];
+        return array(
+          'subject' => $instance['label'],
+          'content' => drupal_get_form('editablefields_form__' . $entity->formblock_entity_type . '__' . $id . '__' . $vid . '__' . $field['field_name'], $entity->formblock_entity_type, $entity, $field, $instance, $langcode, $display),
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_load.
+ *
+ * This is an unfortunate band-aid for http://drupal.org/node/1042822
+ * We use formblock_entity_type to avoid stomping entity_type in case some other
+ * contrib module has done something with that key.
+ */
+function formblock_entity_load($entities, $type) {
+  foreach ($entities as $entity) {
+    $entity->formblock_entity_type = $type;
+  }
+}

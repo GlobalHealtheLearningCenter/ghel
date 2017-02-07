@@ -1,0 +1,24 @@
+//
+// @file
+// Styles for all regions within main.
+
+// Main
+#main {
+  background-color: $gray-white;
+}
+.course-workflow #main{
+	 background-color: #fff;
+}
+
+// Above content
+#above-content {
+  padding-top: rhythm(2);
+}
+
+#main-content {
+  padding: rhythm(3) 0;
+}
+
+#content {
+  position: relative;
+}

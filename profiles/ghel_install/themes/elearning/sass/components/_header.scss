@@ -1,0 +1,140 @@
+//
+// @file
+// Non-layout Header region styles.
+
+#header {
+  @include clearfix;
+  padding: 5px 0;
+  background-color: $white;
+  background-color: #f9f9f9;
+  @include breakpoint($tablet-nav, $no-query: '.lt-ie9') {
+    padding: 5px 0;
+  }
+}
+
+#branding {
+  text-align: left;
+  width: 100%;
+  float: none;
+  h1{
+    padding: 15px 0 5px;    
+    width: 50%;
+    float: left;
+    display: inline;
+  }
+  #util_nav{
+    width: 50%;
+    float: left;
+    display: inline;
+    text-align: right;
+
+    #block-menu-block-ghel-base-menu-blocks-2{
+      li{
+        font-size: 12px;
+        text-transform: uppercase;
+        display: inline-block;
+        a{
+          padding: 0px 0 0 15px;
+          font-weight: 600;
+        }
+      }
+    }
+  }
+}
+
+#navigation {
+  background-color: $orange;
+  //border-top: 1px solid $orange-dark;
+  min-height: 3px;
+}
+
+
+// Utility Nav
+#block-system-user-menu {
+  overflow: hidden; // Prevent margins from spilling over.
+
+  .nav {
+    text-align: center;
+  }
+
+  .nav-link {
+    @extend %button;
+    @extend %button-medium;
+    @include link-colors($orange-lighter, $white);
+    display: block;
+    margin: rhythm(1, $fs-s) 0;
+    font-weight: bold;
+    border-color: transparent;
+  }
+
+  @include breakpoint($mobile-nav, $no-query: '.lt-ie9') {
+    display: block !important; // Override shown js class.
+    position: absolute;
+    top: -46px;
+    left: -12px;
+
+    .nav-item {
+      @include inline-block;
+    }
+
+    .nav-link {
+      @include link-colors($orange, $orange-dark);
+      margin-left: $w-gutter-half;
+      font-weight: bold;
+    }
+
+    // Sign in | Logout
+    .nav-link-sign-in,
+    .nav-link-log-out {
+      @include link-colors($gray, $gray-dark);
+    }
+  }
+
+  @include breakpoint($tablet-nav, $no-query: '.lt-ie9') {
+    top: -92px;
+    right: 0;
+    left: auto;
+    padding-top: rhythm(2);
+  }
+}
+
+// Main menu
+#block-menu-block-ghel-base-menu-blocks-1 {
+
+  .nav {
+    text-align: center;
+  }
+
+  .nav-link {
+    color:$orange-white;
+    display: block;
+    margin: 0;
+    padding: 10px 15px;
+    border-color: rgba(0, 0, 0, 0);
+    line-height: 24px;
+    font-size: 14px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .active-trail > .nav-link,
+  .active.nav-link {
+    background-color: $orange-dark;
+    color: $white;
+  }
+
+  @include breakpoint($mobile-nav, $no-query: '.lt-ie9') {
+    display: block !important; // Show it when there is room.
+    float: left;
+
+    .nav {
+      float: left;
+      margin: 0;
+      text-align: left;
+
+      > .nav-item {
+        @include inline-block;
+      }
+    }
+  }
+}

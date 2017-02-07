@@ -1,0 +1,12 @@
+// Recently Added courses
+
+.view-ghel-recently-added-courses {
+  .article-item {
+    @extend %article-list-bulleted;
+  }
+
+  .article-title {
+    @include adjust-font-size-to($fs-s);
+    margin-bottom: rhythm(1, $fs-s);
+  }
+}

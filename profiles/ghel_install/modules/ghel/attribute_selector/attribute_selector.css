@@ -1,0 +1,24 @@
+.attribute-selector-candidates {
+  float: left;
+  width: 33%;
+  text-align: left;
+}
+
+.attribute-selector-middle {
+  float: left;
+  width: 33%;
+  text-align: center;
+}
+
+
+.attribute-selector-incumbents {
+  float: left;
+  width: 33%;
+  text-align: right;
+}
+
+
+.attribute-selector-buttons {
+  text-align: center;
+  float: left;
+}

@@ -1,0 +1,65 @@
+// Learner toggle
+#block-ghel-learner-toggle-learnertoggle {
+  margin-bottom: rhythm(2);
+
+  > .block-content {
+    @include clearfix;
+  }
+}
+
+#ghel-learner-toggle-form {
+    float: none;
+    padding: 0;
+    border-radius: 0;
+    margin-top: 0;
+    color: #FFF;
+    // background: rgba(255, 255, 255, 0.11);
+    padding: 10px 0;
+
+  label {
+    font-weight: bold;
+  }
+
+  .form-wrapper {
+    @include inline-block;
+    padding-bottom: 0;
+  }
+
+  .form-item {
+    margin-bottom: 0;
+  }
+
+  .form-submit {
+    @extend %button-small;
+    @extend %button-blue;
+    font-size: .875em;
+    margin: rhythm(1, 12px) $w-gutter-half;
+  }
+
+  label[for="edit-field-ghel-learner-toggle-und"] {
+  background: #4168b6;
+  cursor: pointer;
+  color: #fff;
+  padding: 20px 10px;
+  text-transform: uppercase;
+    &:hover{
+      background: darken(#4168b6, 10%);
+    }
+    &:before{
+      font-family: FontAwesome;
+      content: '\f096';
+      font-size: 18px;
+      margin-right: 10px;
+      line-height: 0;
+      vertical-align: middle;
+    }
+  }
+ #edit-field-ghel-learner-toggle-und:checked + .option {
+      &:before{
+        content: '\f14a';
+      }
+  }
+  #edit-field-ghel-learner-toggle-und {
+      display:none;
+  }
+}

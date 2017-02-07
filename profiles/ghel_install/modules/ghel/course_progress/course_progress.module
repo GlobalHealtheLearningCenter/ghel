@@ -1,0 +1,43 @@
+<?php
+/**
+ * @file
+ * Define the course progress bar.
+ */
+
+/**
+ * Implements hook_block_info().
+ */
+function course_progress_block_info() {
+
+  $blocks = array();
+
+  $blocks['course_progress_bar'] = array(
+    'info' => t('Course Progress Bar'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+
+  return $blocks;
+
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function course_progress_block_view($delta = '') {
+  $navigation = ghel_course_get_navigation();
+  $progress = 1;
+
+  if (!empty($navigation['nav'])) {
+
+    $current = $navigation['current'];
+    $total = count($navigation['nav']);
+    $progress = ceil(100 * $current / $total);
+
+  }
+
+  return array(
+    'subject' => '',
+    'content' => '<div class="progress" style="width: 100%;"><div class="progress-bar" style="position: absolute; left: ' . $progress . '%;"></div></div>',
+  );
+
+}

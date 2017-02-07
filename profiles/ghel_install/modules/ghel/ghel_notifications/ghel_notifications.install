@@ -1,0 +1,34 @@
+<?php
+
+/**
+ * Implements hook_schema().
+ */
+function ghel_notifications_schema() {
+  $schema = array();
+
+  $schema['ghel_notifications'] = array(
+    'description' => 'Tracks notification details.',
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'notified' => array(
+        'description' => 'The last time the user was notified.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'disp-size' => 11,
+      ),
+    ),
+    'primary key' => array('uid'),
+    'indexes' => array(
+      'notified' => array('notified'),
+    ),
+  );
+
+  return $schema;
+}

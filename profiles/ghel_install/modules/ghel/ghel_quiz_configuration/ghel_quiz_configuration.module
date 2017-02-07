@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Quiz Configuration feature.
+ */
+
+include_once 'ghel_quiz_configuration.features.inc';

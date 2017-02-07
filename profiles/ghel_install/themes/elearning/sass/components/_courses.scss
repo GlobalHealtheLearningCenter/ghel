@@ -1,0 +1,502 @@
+// Course Page
+// -----------
+// .one-sidebar.sidebar-first {
+//   .page--courses {
+//     @include breakpoint($tablet, $no-query: '.lt-ie9') {
+//       #content {
+//         @include zen-grid-item(10, 3);
+//       }
+
+//       #sidebar-first {
+//         @include zen-grid-item(2, 1);
+//         clear: none;
+//         padding-top: rhythm(6);
+//       }
+//     }
+//   }
+// }
+.page--courses{
+  .field.body{
+        font-size: 18px;
+    line-height: 22px;
+    max-width: 700px;
+  }
+}
+
+.one-sidebar.sidebar-second  .page--courses  #content,
+.one-sidebar.sidebar-second.about-section #content{
+  width: 100%;
+  margin:0 0 20px;
+  float: none;
+
+  .views-exposed-form{
+    background-color: #ddd;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+   #views-exposed-form-ghel-trans-views-block{
+    background-color: #ddd;
+    padding:0;
+    margin-bottom:20px;
+    .views-exposed-form{
+      padding: 16px;
+      margin-bottom: 0;
+    }
+   }
+}
+
+    #block-views-ghel-trans-views-block,
+    #block-views-ghel-courses-block{
+      .view-content{
+        &:after {
+          content: "\0020";
+          display: block;
+          height: 0;
+          clear: both;
+          overflow: hidden;
+          visibility: hidden;
+        }
+
+
+        .views-row{
+          @include box-sizing(border-box); 
+          width: 100%;
+          padding:0;
+          float: none;
+          margin-bottom: 20px;
+          background:#fff;
+          @include box-shadow(1px 1px 5px -2px rgba(0,0,0,0.2));
+          height: auto;
+          img{
+            max-width: 100%;
+            width: auto;
+            height: auto;
+          }
+
+          .views-field-field-image{
+            text-align: center;
+            padding: 15px 10px;
+          }
+
+          .views-field-title,
+          .views-field-title-field-et{
+            font-size: 20px;
+            display: block;
+            padding: 10px;
+            line-height: 25px;
+          }
+          .views-field-field-ghel-promotional-text,
+          .views-field-body{
+              padding: 5px 10px;
+          }
+        }
+      }
+    }
+  @media (min-width: 767px){
+    .one-sidebar.sidebar-second.about-section #content,
+  .one-sidebar.sidebar-second  .page--courses #content{
+    width: 64.66667%;
+    margin-right:2%;
+    float: left;
+
+
+  }
+    #block-views-ghel-trans-views-block,
+    #block-views-ghel-courses-block{
+      .view-content{
+        .views-row{
+          @include box-sizing(border-box); 
+          width: 49%;
+          float: left;
+          margin-bottom: 20px;
+          height: 390px;
+          img{
+            max-width: 100%;
+            width: auto;
+            height: auto;
+          }
+          &.views-row-odd{
+            margin-right:2%;
+          }
+          .views-field-field-image{
+            padding: 0;
+          }
+        }
+      }
+    }
+}
+
+
+
+.view-ghel-trans-views  #views-exposed-form-ghel-trans-views-block,
+#views-exposed-form-ghel-courses-block {
+ .views-exposed-form label{
+    display: block;
+    margin-bottom: 0;
+  }
+  .form-item{
+    margin:0;
+    input[type="text"]{
+      padding:5px 10px;
+    }
+  }
+  .views-submit-button > .form-submit{
+    margin:0;
+    padding:7px 10px;
+    margin:15px 0 0;
+  }
+   #edit-reset{
+    margin: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border: none;
+    padding:7px 0;
+    margin:15px 0 0;
+   }
+}
+
+
+
+
+  .node-type-ghel-program{
+    #block-views-rendered-entities-block{
+      h2.block-title{
+        font-size: 28px;
+        font-weight: 400;
+        margin: 0 0 20px;
+      }
+      .block-content{
+        margin:0 -10px 20px;
+        &:after {
+          content: "\0020";
+          display: block;
+          height: 0;
+          clear: both;
+          overflow: hidden;
+          visibility: hidden;
+        }
+      }
+      .article-item {
+        border-top-width: 0;
+        border-top-style: solid;
+        border-color: rgba(0, 0, 0, 0);
+        display: block;
+        width: 32.33333%;
+        float: left;
+        min-height: 445px;
+        padding: 0 20px 15px;
+        -webkit-box-sizing: border-box;
+        box-sizing: border-box;
+        margin: 0 0 20px;
+        background: #fff;
+        margin: 0 .5% 15px;
+        box-shadow: 1px 1px 3px -2px rgba(0,0,0,0.4);
+
+        .ds-header{
+          float: none;
+          width: auto;
+          margin:0 -20px 5px;
+          padding: 0;
+          display: block;
+          box-sizing: border-box;
+          word-wrap: break-word;
+        }
+        .ds-content{
+          float: none;
+          display: block;
+          width: 98%;
+          margin: 0;
+          padding: 0;
+          .article-title{
+            font-size: 18px;
+            line-height: 22px;
+            font-weight: 400;
+          }
+          .field-ghel-promotional-text{
+            font-size: 15px;
+            line-height: 20px;
+          }
+        }
+      }
+    }
+  }
+@media(max-width:900px){
+  .node-type-ghel-program{
+    #block-views-rendered-entities-block{
+      .article-item {
+          width:49%;
+      }
+    }
+  }
+}
+@media(max-width:550px){
+  .node-type-ghel-program{
+    #block-views-rendered-entities-block{
+      .article-item {
+          min-height: 0;
+          width:100%;
+          float: none;
+          margin: 0 0 20px;
+        .block-content{
+          margin:0 0 20px;
+        }
+        .ds-header{
+          // width: 420px;
+          // margin: 0 auto;
+        }
+      }
+    }
+  }
+}
+
+//course-node page
+
+#block-sharethis-sharethis-block{
+    text-align:right;
+}
+
+.node-type-ghel-course{
+    .node.node-ghel-course.view-mode-full{
+        &:after {
+            content: "\0020";
+            display: block;
+            height: 0;
+            clear: both;
+            overflow: hidden;
+            visibility: hidden;
+        }
+        .ds-content{
+            width: 70%;
+            padding-right:20px;
+            float: left;
+            margin: 0;
+            box-sizing: border-box;
+            .course-start {
+                position: relative;
+                padding: 5px 0;
+                margin: 0 0 15px;
+                text-align: center;
+            }
+            .group-contentheader {
+                margin: 0 0 30px;
+
+                .field.body {
+                    max-width: 100%;
+                    padding: 0;
+                    font-size: 14px;
+                    line-height: 18px;
+                    ul, ol{
+                        right: -20px;
+                        position:relative;
+                        padding: 0 50px 0 0;
+                    }
+                }
+                .field-image{
+                    float: left;
+                    padding: 0 25px 2px 0;
+                }
+            }
+            .field-ghel-objective{
+                h3{
+                    font-size: 20px;
+                    font-weight: 400;
+                    margin: 0 0 10px;
+                    border-bottom: 1px solid #dedede;
+                    padding-bottom: 8px;
+                }
+            }
+            .credits{
+                margin: 40px 0 20px;
+                h3{
+                    font-size: 16px;
+                    margin: 0 0 14px;
+                    padding-top: 20px;
+                    border-top: 1px solid #dedede;
+                }
+            }
+        }
+        .ds-aside{
+            float: left;
+            width: 30%;
+            margin: 0;
+            background: none;
+            border:none;
+            border-radius: 0;
+            padding:0;
+            box-sizing: border-box;
+            clear: none;
+            .group-asideinner{
+                background: #E2ECF0;
+                box-shadow: 1px 1px 4px -1px rgba(0,0,0,0.2);
+                padding: 10px;
+                font-size: 16px;
+                line-height: 18px;
+                .field{
+                    margin:0;
+                }
+                ul{
+                    list-style: none;
+                    border:none;
+                    padding: 0;
+                    margin: 0 0 -10px;
+                    border-bottom: 1px solid rgba(0, 0, 0, 0);
+                    li{
+                        padding: 0;
+                        margin: 0;
+                        border: none;
+                        a{
+                            margin: 0;
+                            padding: 5px 10px;
+                            display: block;
+                            font-size: 12px;
+
+                            &:hover{
+                                background-color:#f9f9f9;
+                            }
+                            &:active, 
+                            &.active {
+                                background-color: #314e88;
+                                color: #FFF;
+                            }
+                        }
+                        &:before{
+                            content:'';
+                            display: none;
+                        }
+                    }
+                }
+                ul.field-items{
+                    margin:0;
+                }
+                label.field-label,
+                h3.field-label{
+                    font-size: 0.85714em;
+                    line-height: 1.5em;
+                    font-weight: bold;
+                    color: #424c5e;
+                    margin:15px 0 0 0;
+                    color: $secondary;
+                }
+                .field-ghel-time {
+                    h3{
+                        font-size: 0.85714em;
+                        line-height: 1.5em;
+                        font-weight: bold;
+                        color: #424c5e;
+                        margin:0;
+                        color: $secondary;
+                    }
+                }
+            }
+            .ghel-offline-content, .paragraphs-items-field-translation-files{
+                background: #fff;
+                box-shadow: 1px 1px 4px -1px rgba(0,0,0,0.2);
+                padding: 10px;
+            }
+        }
+        @media(max-width: 767px){
+            .ds-content,
+            .ds-aside{
+                float: none;
+                width: 100%
+            }
+
+        }
+    }
+    .help-block{
+        position:relative;
+        #help-button{
+            position: absolute;
+            top: -25px;
+            right: 0;
+            text-decoration: none;
+            .fa-chevron-circle-up{
+                display:none;
+            }
+            .fa-question-circle{
+                display: block;
+            }
+            &.open{
+                .fa-chevron-circle-up{
+                    display:block;
+                }
+                .fa-question-circle{
+                    display: none;
+                }
+            }
+        }
+        .help-text{
+            max-height: 0;
+            transition: max-height 0.15s ease-out;
+            overflow: hidden;
+
+            .inner{
+                border: 1px dashed #bebebe;
+                padding: 8px;
+                margin-bottom: 20px;
+                background: #f4f4f4;
+                h3{
+                    margin:0 0 10px;
+                }
+            }
+            &.open{
+                max-height: 500px;
+                transition: max-height 0.25s ease-in;
+            }
+        }
+    }
+}
+.node-type-ghel-course .node.node-ghel-course.view-mode-full .ds-aside .group-contentfooter{
+    &:after {
+        content: "\0020";
+        display: block;
+        height: 0;
+        clear: both;
+        overflow: hidden;
+        visibility: hidden;
+    }
+}
+.epub-file,
+.mobi-file,
+.print-course,
+.pdf-course{
+    a{
+        display: block;
+        padding: 0;
+        text-align: left;
+        background:none;
+        box-sizing: border-box;
+        margin: 15px 0 0;
+        color: $link-color;
+        font-size: 16px;
+        &:hover{
+            color:$link-color-hover;
+        }
+    }
+}
+
+.epub-file,
+.mobi-file,
+.print-course,
+.pdf-course{
+    a:before{
+        font-family: FontAwesome;
+        content:'\f02d';
+        margin-right: 5px;
+    }
+}
+
+
+.epub-file a:before{
+    content:'\f02d';
+}
+.mobi-file a:before{
+    content:'\f10b';
+}
+.print-course a:before{
+    content:'\f02f';
+}
+.pdf-course a:before{
+    content:'\f1c1';
+}
+
+

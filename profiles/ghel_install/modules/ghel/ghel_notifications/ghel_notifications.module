@@ -1,0 +1,338 @@
+<?php
+
+// Define values users can choose.
+define('GHEL_NOTIFICATIONS_DAILY', 86400);
+define('GHEL_NOTIFICATIONS_SEMIWEEKLY', 302400);
+define('GHEL_NOTIFICATIONS_WEEKLY', 604800);
+define('GHEL_NOTIFICATIONS_NEVER', 0);
+
+// Define the drupal date format to use
+define('GHEL_NOTIFICATIONS_DATE_FORMAT', 'short');
+
+define('GHEL_NOTIFICATIONS_MESSAGE_SUBJECT', '[!site] New activity in your program groups');
+define('GHEL_NOTIFICATIONS_MESSAGE_EVENT', "<p><a href='!url'>@title</a>, updated on @date.</p>");
+define('GHEL_NOTIFICATIONS_TEMPLATE_DISCUSSIONS', "<p>Discussions:</p><p>!discussions</p>");
+define('GHEL_NOTIFICATIONS_TEMPLATE_RESOURCES', "<p>Resources:</p><p>!resources</p>");
+define('GHEL_NOTIFICATIONS_MESSAGE_GROUP_CONTENT', "<p><a href='!url'>@title</a>, updated on @date.</p>");
+define('GHEL_NOTIFICATIONS_TEMPLATE_GROUP', "<p>!group:</p><p>!discussions</p><p>!resources</p>");
+define('GHEL_NOTIFICATIONS_TEMPLATE', "<p>Hello, !realname,</p><p>This email lists all recent activity in your groups in the Global Health Learning site.</p><p>To see all group activity, go to http://www.globalhealthlearning.org/my-community/interactions</p><p>To see your course dashboard, go to http://www.globalhealthlearning.org/dashboard</p><p>!groups</p>");
+
+/**
+ * Implements hook_cron().
+ */
+function ghel_notifications_cron() {
+  if(!module_exists("ghel_mail_safety")) {
+    // We want to enforce having the mail safety module enabled to avoid
+    // accidentally sending mail after updating code via git
+    watchdog('ghel_notifications', "Error: ghel_mail_safety is not enabled");
+    return;
+  }
+
+  // We use the field data as the base field so that if a user has not set a
+  // value for the notification interval we default to no notifications.
+  $query = db_select('field_data_field_ghel_notifications', 'fn');
+  $query->leftJoin('ghel_notifications', 'cn', 'cn.uid = fn.entity_id');
+  $query->condition('fn.entity_type', 'user');
+  $query->condition('fn.field_ghel_notifications_value', GHEL_NOTIFICATIONS_NEVER, '!=');
+  $now = time();
+  // The time since last notified is greater or equal to the requested notification interval.
+  $query->where('fn.field_ghel_notifications_value <= (' . $now . ' - cn.notified) OR cn.notified IS NULL');
+
+  $query->fields('fn', array('entity_id'));
+  $query->fields('cn', array('notified'));
+
+  // TODO: Add threshold value to sort by how far of a discrepency from the
+  // requested reporting value to prioritize those users that are furthest from
+  // there desired reporting frequency
+  $result = $query->execute();
+  $uids = array_keys($result->fetchAllKeyed());
+  if (!empty($uids) ) {
+    ghel_notifications_notify_users($uids);
+  }
+}
+
+/**
+ * Helper function used to initiate the necessary messaging and logging.
+ * @param $uids array
+ *   Array keyed by user ids with the last time the corresponding user was notified.
+ *
+ */
+function ghel_notifications_notify_users($uids) {
+  $now = time();
+
+  // Make sure all necessary accounts are in drupal's cache.
+  user_load_multiple($uids);
+
+  foreach($uids as $uid) {
+    $account = user_load($uid);
+    $groups = og_get_groups_by_user($account, 'node');
+    if(empty($groups)) {
+      // User is not part of any groups
+      continue;
+    }
+    $query = db_select('ghel_notifications', 'gn');
+    $query->condition('gn.uid', $uid, '=');
+    $query->fields('gn', array('notified'));
+    $result = $query->execute()->fetchField();
+
+    // If they have never been notified, only show past weeks details.
+    if (empty($result)) {
+      $last_notified = $now - GHEL_NOTIFICATIONS_WEEKLY;
+    }
+    else {
+      $last_notified = $result;
+    }
+
+    $params = array(
+      'last_notified' => $last_notified,
+      'account' => $account,
+    );
+
+    $message = drupal_mail('ghel_notifications', 'notification', $account->mail, user_preferred_language($account), $params, variable_get('site_mail', ini_get('sendmail_from')));
+    if ($message['result']) {
+      watchdog('ghel_notifications', 'Notifications mail successfully sent to !mail.', array('!mail' => $account->mail), WATCHDOG_WARNING);
+      ghel_notifications_update_notification_time($account, $now);
+    }
+    else if ( $message['send'] == FALSE ) {
+      // We update the notification window to avoid extraneous queries.
+      // Assumption is that if the message was cancelled it was done by us.
+      watchdog('ghel_notifications', 'Notifications mail to !mail aborted.', array('!mail' => $account->mail), WATCHDOG_WARNING);
+      ghel_notifications_update_notification_time($account, $now);
+    }
+    else {
+      // log this to watchdog. (Possibly bad email address?)
+      // TODO: improve logging here or will other errors be logged with more detail?
+      watchdog('ghel_notifications', 'Notification mail failure for account with address !mail.', array('!mail' => $account->mail), WATCHDOG_WARNING);
+    }
+  }
+}
+
+/**
+ * Update the ghel_notifications table with the time we notified this user.
+ *
+ * @param $account object
+ *   A fully loaded user object (we just use $account->uid)
+ * @param $time integer
+ *   A unix timestamp indicating the last notified time. If omitted defaults
+ *   to current time.
+ */
+function ghel_notifications_update_notification_time($account, $time = NULL) {
+  if ($time == NULL) {
+    $time = time();
+  }
+
+  db_merge('ghel_notifications')
+    ->key(array('uid' => $account->uid))
+    ->fields(array(
+      'notified' => $time,
+    ))
+    ->execute();
+}
+
+/**
+ * Implementation of hook_mail().
+ */
+function ghel_notifications_mail($key, &$message, $params) {
+  $report = ghel_notifications_generate_user_report($params['account'], $params['last_notified']);
+  if (!empty($report)) {
+    $variables['!site'] = variable_get('site_name', "Global Health eLearning Center");
+    $message['subject'] = t(GHEL_NOTIFICATIONS_MESSAGE_SUBJECT, $variables);
+    $message['body'] = explode("\n", $report);
+  }
+  else {
+    // no report to send.
+    $message['send'] = FALSE;
+  }
+}
+
+/**
+ * Generate the update for a given user account.
+ *
+ * @param $account object
+ *   A fully loaded user object.
+ * @param $last_notified integer
+ *   A unix timestamp indicating when the user was last notified.
+ */
+function ghel_notifications_generate_user_report($account, $last_notified) {
+  $report = '';
+  $group_content = ghel_notifications_get_group_content($account, $last_notified);
+
+  if (!empty($group_content)) {
+    $fn=field_get_items('user', $account, 'field_ghel_first_name');
+    $ln= field_get_items('user', $account, 'field_ghel_last_name');
+    $first_name = $fn[0]['safe_value'];
+    $last_name =  $ln[0]['safe_value'];
+    $realname = "$first_name $last_name";
+
+    $params = array(
+      '!realname' => $realname,
+    );
+
+    if (!empty($group_content)) {
+      $params['!groups'] = implode("\n", $group_content);
+    }
+    else {
+      $params['!groups'] = '';
+    }
+
+    $report .= t(GHEL_NOTIFICATIONS_TEMPLATE, $params);
+
+  }
+  return $report;
+
+}
+
+/**
+ * Get a users group content that has been updated since we last notified them.
+ *
+ * @param $account object
+ *   A fully loaded user object.
+ * @param $last_notified integer
+ *   A unix timestamp indicating when the user was last notified.
+ */
+function ghel_notifications_get_group_content($account, $last_notified) {
+  $group_content = array();
+  $groups = og_get_groups_by_user($account, 'node');
+  if (!empty($groups)) {
+    foreach ($groups as $gid) {
+      $content = array(
+        'discussions' => array(),
+        'resources' => array(),
+      );
+      $group = node_load($gid);
+      $content['group'] = entity_label('node', $group);
+      $content['discussions'] = ghel_notifications_get_discussions($account, $last_notified, $gid);
+      $content['resources'] = ghel_notifications_get_resources($account, $last_notified, $gid);
+      if (!empty($content['discussions']) || !empty($content['resources']) ) {
+        $params = array('!group' => $content['group']);
+
+        if (!empty($content['discussions'])) {
+          $params['!discussions'] = t(GHEL_NOTIFICATIONS_TEMPLATE_DISCUSSIONS, array('!discussions' => implode("\n",$content['discussions'])));
+        }
+        else {
+          $params['!discussions'] = '';
+        }
+
+        if (!empty($content['resources'])) {
+          $params['!resources'] = t(GHEL_NOTIFICATIONS_TEMPLATE_RESOURCES , array('!resources' => implode("\n",$content['resources'])));
+        }
+        else {
+          $params['!resources'] = '';
+        }
+
+        $group_content[$gid] = t(GHEL_NOTIFICATIONS_TEMPLATE_GROUP, $params);
+      }
+    }
+  }
+
+  return $group_content;
+}
+
+/**
+ * Get group content discussions.
+ *
+ * @param $account object
+ *   A fully loaded user object.
+ * @param $last_notified integer
+ *   A unix timestamp indicating when the user was last notified.
+ * @param $gid integer
+ *   Integer representing the group to get content for.
+ */
+function ghel_notifications_get_discussions($account, $last_notified, $gid) {
+  $nodes = ghel_notifications_group_nodes($account, $last_notified, $gid, 'ghel_discussion', 'field_ghel_post_in');
+  return ghel_notifications_nodes_to_messages($nodes);
+}
+
+/**
+ * Get group content resources.
+ *
+ * @param $account object
+ *   A fully loaded user object.
+ * @param $last_notified integer
+ *   A unix timestamp indicating when the user was last notified.
+ * @param $gid integer
+ *   Integer representing the group to get content for.
+ */
+function ghel_notifications_get_resources($account, $last_notified, $gid) {
+  $nodes = ghel_notifications_group_nodes($account, $last_notified, $gid, 'ghel_resource', 'field_ghel_er_partof', FALSE);
+  return ghel_notifications_nodes_to_messages($nodes);
+}
+
+/**
+ * Get group content helper function.
+ *
+ * @param $account object
+ *   A fully loaded user object.
+ * @param $last_notified integer
+ *   A unix timestamp indicating when the user was last notified.
+ * @param $gid integer
+ *   Integer representing the group to get content for.
+ * @param $bundle string
+ *   Drupal node type.
+ * @param $group_field
+ *   The field holding the group affiliation for the bundle.
+ * @param $comments boolean
+ *   Use comment activity to determine if a node should be included.
+ */
+function ghel_notifications_group_nodes($account, $last_notified, $gid, $bundle, $group_field, $comments = TRUE) {
+  $nodes = array();
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', $bundle)
+    ->propertyCondition('changed', $last_notified, '>')
+    ->addMetaData('account', $account)
+    ->fieldCondition($group_field, 'target_id', $gid);
+  if ($comments) {
+    $query->addTag('ghelcomments');
+  }
+  else {
+    $query->propertyOrderBy('changed');
+  }
+  $result = $query->execute();
+  if (!empty($result)) {
+    $nodes = node_load_multiple(array_keys($result['node']));
+  }
+  return $nodes;
+}
+
+/**
+ * Implements hook_query_TAG_alter().
+ */
+function ghel_notifications_query_ghelcomments_alter(QueryAlterableInterface $query) {
+  // Add the join to the "node_comment_statistics" table.
+  $query->join('node_comment_statistics', 'ncs', 'ncs.nid = node.nid');
+  $query->orderBy('GREATEST(ncs.last_comment_timestamp, node.changed)');
+}
+
+/**
+ * Get the message string for group content.
+ *
+ * @param $node object
+ *   Fully loaded node object to generate an notification message for.
+ */
+function ghel_notifications_get_notification_text($node) {
+  $params = array(
+    '@title' => entity_label('node', $node),
+    '@date' => format_date(max($node->changed, $node->last_comment_timestamp), GHEL_NOTIFICATIONS_DATE_FORMAT),
+    '!url' => url('node/' . $node->nid, array('absolute' => TRUE)),
+  );
+  return t(GHEL_NOTIFICATIONS_MESSAGE_GROUP_CONTENT, $params);
+}
+
+/**
+ * Nodes to messages.
+ *
+ * @param $nodes array
+ *   Array of fully loaded node objects to generate messages for.
+ */
+function ghel_notifications_nodes_to_messages($nodes) {
+  $messages = array();
+
+  if (!empty($nodes)) {
+    foreach ($nodes as $node) {
+      $messages[] = ghel_notifications_get_notification_text($node);
+    }
+  }
+
+  return $messages;
+}

@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Highlighted feature.
+ */
+
+include_once 'ghel_partner.features.inc';

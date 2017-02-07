@@ -1,0 +1,164 @@
+<?php
+/**
+ * @file
+ * Custom code to create a "learner toggle" to allow non-learners to experience
+ * the learner role UI/UX and to take courses..
+ */
+
+/**
+ * Implements hook_ctools_plugin_api().
+ */
+function ghel_learner_toggle_ctools_plugin_api($module, $api) {
+  if ($module == 'context' && $api == 'plugins') {
+    return array('version' => 3);
+  }
+}
+
+/**
+ * Implements hook_context_plugins().
+ */
+function ghel_learner_toggle_context_plugins() {
+  $plugins = array();
+  $plugins['ghel_learner_toggle_condition_learner'] = array(
+    'handler' => array(
+      'path' => drupal_get_path('module', 'ghel_learner_toggle') . '/plugins',
+      'file' => 'ghel_learner_toggle_condition_learner.inc',
+      'class' => 'ghel_learner_toggle_condition_learner',
+      'parent' => 'context_condition',
+    ),
+  );
+  return $plugins;
+}
+
+/**
+ * Implements hook_context_registry().
+ */
+function ghel_learner_toggle_context_registry() {
+  return array(
+    'conditions' => array(
+      'learner' => array(
+        'title' => t('Learner Toggle'),
+        'description' => t("Set this context when the user is a learner or the learner status is toggled for non-learners."),
+        'plugin' => 'ghel_learner_toggle_condition_learner',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_context_page_condition().
+ */
+function ghel_learner_toggle_context_page_condition() {
+  if ($plugin = context_get_plugin('condition', 'learner')) {
+    global $user;
+    $plugin->execute($user);
+  }
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function ghel_learner_toggle_block_info() {
+  $blocks['learnertoggle'] = array(
+    'info' => t('Learner mode toggle'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function ghel_learner_toggle_block_view($delta = '') {
+  $block = array();
+
+  switch ($delta) {
+    case 'learnertoggle':
+      $block['subject'] = '';
+      $block['content'] = drupal_get_form('ghel_learner_toggle_form');
+  }
+  return $block;
+}
+
+/**
+ * Implements learner toggle form.
+ * @see user_register_form()
+ */
+function ghel_learner_toggle_form($form, &$form_state) {
+  global $user;
+  $form = array();
+  // Make sure we have a fully populated user object.
+  if (!user_is_anonymous() && !in_array('learner', $user->roles)) {
+    drupal_add_js(drupal_get_path('module', 'ghel_learner_toggle') . '/ghel_learner_toggle.js');
+    $account = user_load($user->uid);
+    $form['#user'] = $account;
+
+    $langcode = entity_language('user', $form['#user']);
+    field_attach_form('user', $form['#user'], $form, $form_state, $langcode);
+    foreach (field_info_instances('user', 'user') as $field_name => $instance) {
+      if ($field_name != 'field_ghel_learner_toggle') {
+        $form[$field_name]['#access'] = FALSE;
+      }
+    }
+
+    $form['actions'] = array('#type' => 'actions');
+    $form['actions']['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Save'),
+    );
+    $form['#attributes'] = array('class' => array('ghel-learner-toggle-form'));
+    $form['#submit'][] = 'ghel_learner_toggle_form_submit';
+  }
+  // Prevent the form from rendering for non-privileged users.
+  else {
+    $form['#printed'] = TRUE;
+  }
+
+  return $form;
+}
+
+function ghel_learner_mode_is_enabled() {
+  global $user;
+  $account = user_load($user->uid);
+  if (!empty($account) && !user_is_anonymous()) {
+    $learnermode = field_get_items('user', $account, 'field_ghel_learner_toggle');
+    if (!empty($learnermode[0]['value'])) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Submission routine for learner toggle submit.
+ */
+function ghel_learner_toggle_form_submit($form, &$form_state) {
+
+  global $user;
+
+  $account = $form['#user'];
+
+  if ($account->uid == $user->uid) {
+    $langcode = entity_language('user', $account);
+    if (isset($form_state['values']['field_ghel_learner_toggle'])) {
+      $edit = array(
+        'field_ghel_learner_toggle' => $form_state['values']['field_ghel_learner_toggle'],
+      );
+
+      user_save($user, $edit);
+    }
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function ghel_learner_toggle_form_alter(&$form, &$form_state, $form_id) {
+
+  if ($form_id == 'user_profile_form') {
+    if (isset($form['#user']->roles) && in_array('learner', $form['#user']->roles)) {
+      $form['field_ghel_learner_toggle']['#access'] = FALSE;
+    }
+  }
+}

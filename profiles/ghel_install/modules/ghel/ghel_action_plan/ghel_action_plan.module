@@ -1,0 +1,238 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Action Plan feature.
+ */
+
+include_once 'ghel_action_plan.features.inc';
+
+/**
+ * Implements hook_form_alter().
+ */
+function ghel_action_plan_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+
+  if ($form_id == 'ghel_action_plan_node_form') {
+    $form['#validate'][] = 'ghel_action_plan_validate';
+    $field = field_info_field('field_ghel_course_ref');
+    $instance = field_info_instance('node', 'field_ghel_course_ref', 'ghel_action_plan');
+    $values = entityreference_prepopulate_get_values_from_url($field, $instance);
+
+    if (!empty($values)) {
+      $target_entity = reset($values);
+      if (empty($form['title']['#default_value']) && $course = node_load($target_entity['target_id'])) {
+        $account = user_load($user->uid);
+        $firstname = reset(field_get_items('user', $account, 'field_ghel_first_name'));
+        $lastname = reset(field_get_items('user', $account, 'field_ghel_last_name'));
+
+        if (!empty($firstname) && !empty($lastname)) {
+          $form['title']['#default_value'] = t('Action plan by !firstname !lastname for !coursename', array(
+            '!firstname' => $firstname['safe_value'],
+            '!lastname' => $lastname['safe_value'],
+            '!coursename' => check_plain($course->title),
+          ));
+        }
+        else {
+          $form['title']['#default_value'] = t('Action plan by !username for !coursename', array(
+            '!username' => check_plain(format_username($user)),
+            '!coursename' => check_plain($course->title),
+          ));
+        }
+        // don't let the user manipulate the auto-title
+        $form['title']['#disabled'] = TRUE;
+        $form['field_ghel_course_ref']['#disabled'] = TRUE;
+      }
+    }
+  }
+}
+
+/**
+ * Custom form validation for creating action plans.
+ *
+ * This ensures the user creates only one action plan per course and that they
+ * have passed the final exam prior to creating an action plan.
+ */
+function ghel_action_plan_validate($form, &$form_state) {
+  global $user;
+  $nid = $form_state['values']['field_ghel_course_ref'][LANGUAGE_NONE][0]['target_id'];
+  if (!empty($course)) {
+    $course = node_load($nid);
+    $revision = ghel_course_get_revision($course);
+    if (!achievements_unlocked_already('g-f-quiz-' . $nid . '-' . $revision, $user->uid)) {
+      form_set_error('field_ghel_course_ref', t('You have not passed the final exam for !course.', array('!course' => l($course->title, 'node/' . $course->nid))));
+    }
+
+    $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'node')
+      ->entityCondition('bundle', 'ghel_action_plan')
+      ->fieldCondition('field_ghel_course_ref', 'target_id', $nid)
+      ->propertyCondition('uid', $user->uid);
+    $result = $query->execute();
+    if (!empty($result)) {
+      $details = reset($result['node']);
+      $ap = node_load($details->nid);
+      form_set_error('field_ghel_course_ref', t('You have already completed an !ap for !course.', array(
+        '!ap' => l(t('Action Plan'), 'node/' . $ap->nid),
+        '!course' => l($course->title, 'node/' . $course->nid),
+      )));
+    }
+  }
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function ghel_action_plan_block_info() {
+  $blocks['links'] = array(
+    'info' => t('Action plan links'),
+    'cache' => DRUPAL_CACHE_PER_USER | DRUPAL_CACHE_PER_PAGE,
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function ghel_action_plan_block_view($delta = '') {
+  $block = array();
+
+  switch ($delta) {
+    case 'links':
+      $action_plan = menu_get_object('node');
+      if (!empty($action_plan) && $action_plan->type == 'ghel_action_plan') {
+        global $user;
+        // Block should only be displayed to author or user's with administer nodes.
+        if ($action_plan->uid != $user->uid && !user_access('administer nodes')) {
+          return $block;
+        }
+        $referred = field_get_items('node', $action_plan, 'field_ghel_course_ref');
+        if (!empty($referred)) {
+          $nid = reset($referred);
+          $course = node_load($nid['target_id']);
+        }
+        $links = array();
+
+        if (!empty($course)) {
+          $revision = ghel_course_get_revision($course);
+          $links[] = array(
+            'title' => t('View certificate'),
+            'href' => 'certificate/' . $action_plan->uid . '/g-c-completion-' . $course->nid . '-' . $revision . '-' . $action_plan->uid,
+             'attributes' => array(
+              'target' => '_blank',
+            ),
+          );
+
+          // Find the quiz results.
+          // First find the quiz id.
+          $pages = field_get_items('node', $course, 'field_ghel_course_navigation');
+          if (!empty($pages)) {
+            $quiz = new stdClass;
+            $quiz->type = 1;
+            while ($quiz->type != 'quiz') {
+              $qnid = array_pop($pages);
+              $quiz = node_load($qnid['target_id']);
+            }
+
+            if (!empty($quiz->nid)) {
+              $query = db_select('quiz_node_results', 'r')
+                ->fields('r', array('result_id'))
+                ->condition('r.nid', $quiz->nid)
+                ->condition('r.uid', $action_plan->uid)
+                ->condition('r.time_end', 0, '!=')
+                ->orderBy('r.time_end', 'DESC');
+
+              $result = reset($query->execute()->fetchCol());
+
+              if (!empty($result)) {
+                $links[] = array(
+                  'title' => t('View quiz results'),
+                  'href' => 'node/' . $quiz->nid . '/myresults/' . $result,
+                  'attributes' => array(
+                    'target' => '_blank',
+                  ),
+                );
+              }
+            }
+          }
+
+          $webform = reset(entity_uuid_load('node', array('776ad709-00e9-4426-8f3f-4aa7cedf2423')));
+          if (!empty($webform)) {
+            $links[] = array(
+              'title' => t('Complete course evaluation'),
+              'href' => 'node/' . $webform->nid,
+              'query' => array(
+                'id' => $course->nid,
+                'name' => $course->title,
+              ),
+              'attributes' => array(
+                'target' => '_blank',
+              ),
+            );
+          }
+        }
+        $links[] = array(
+          'title' => t('Other courses'),
+          'href' => 'courses',
+          'attributes' => array(
+            'target' => '_blank',
+          ),
+        );
+
+        $links[] = array(
+          'title' => t('Learner Home'),
+          'href' => 'dashboard',
+          'attributes' => array(
+            'target' => '_blank',
+          ),
+        );
+
+        $content = array(
+          '#theme' => 'links',
+          '#links' => $links,
+          '#attributes' => array(
+            'class' => array('action-plan-links'),
+          ),
+        );
+
+        $block['subject'] = t('Next Steps');
+        $block['content'] = $content;
+      }
+      break;
+  }
+
+  return $block;
+}
+
+/**
+ * Returns a link to the course evaluation form for the given user.
+ */
+function ghel_action_plan_print_link($coursenid, $account = NULL) {
+  if ($account == NULL) {
+    global $user;
+    $account = $user;
+  }
+
+  $query = new EntityFieldQuery();
+  $result = $query
+    ->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'ghel_action_plan')
+    ->propertyCondition('uid', $account->uid)
+    ->fieldCondition('field_ghel_course_ref', 'target_id', $coursenid)
+    ->execute();
+
+  if (!empty($result['node'])) {
+    $action_plan = node_load(reset(array_keys($result['node'])));
+    if (empty($complete)) {
+      $path = 'node/' . $action_plan->nid;
+      return l(t('View Action Plan'), $path);
+    }
+  }
+
+  $options = array(
+    'query' => array(
+      'field_ghel_course_ref' => $coursenid,
+    ),
+  );
+  return l(t('Create Action Plan'), 'node/add/ghel-action-plan', $options);
+
+}

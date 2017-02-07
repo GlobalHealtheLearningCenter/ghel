@@ -1,0 +1,22 @@
+#ghel-attribute-selector-roles-form {
+  .ajax-progress {
+    float: none;
+
+    > .throbber,
+    > .message {
+      @include inline-block;
+      float: none;
+    }
+  }
+
+  .progress-disabled {
+    float: none;
+  }
+}
+
+.attribute-selector-candidates,
+.attribute-selector-incumbents {
+  select {
+    width: 100%;
+  }
+}

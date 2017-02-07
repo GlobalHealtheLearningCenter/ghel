@@ -1,0 +1,12 @@
+name = Path Analytics
+description = Provides Path-Based Analytics Reports specific to a section's path (can be used for OG as well).
+package = Statistics
+core = "7.x"
+
+; Always available CSS
+stylesheets[all][] = css/path_analytics.css
+; Dependencies
+dependencies[] = chart
+dependencies[] = google_analytics_reports
+dependencies[] = google_analytics_reports_api
+dependencies[] = date_popup

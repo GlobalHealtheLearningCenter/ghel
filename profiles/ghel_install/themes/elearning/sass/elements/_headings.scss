@@ -1,0 +1,104 @@
+.title-header{
+  background-color: #fff;
+  padding: 20px 0;
+  width: 100%;
+  position: relative;
+  display: block;
+  border-bottom: 1px solid #c5c5c5;
+    .page-title {
+      margin-bottom:0;
+    }
+  .arrow-up,
+  .arrow-shaddow{
+    width: 0;
+    height: 0;
+    border-left: 20px solid rgba(0, 0, 0, 0);
+    border-right: 20px solid rgba(0, 0, 0, 0);
+    border-bottom: 12px solid #f5f5f5;
+    position: absolute;
+    margin-top: 9px;
+  }
+  .arrow-shaddow{
+    border-bottom-color: #c5c5c5;
+    margin-top: 8px;
+  }
+
+}
+.article-title {
+  margin: 0 0 rhythm(1, $fs-xl);
+  @include adjust-font-size-to($fs-xl, 3);
+  font-family: $secondary-typeface;
+  font-weight: bold;
+}
+
+.article-title-small,
+.article-title.is-small {
+  @include adjust-font-size-to($fs-s, 2.5);
+  margin-bottom: rhythm(1, $fs-s);
+  font-family: $primary-typeface;
+}
+
+.headline {
+  @include text-shadow(rgba($black, .5) 0 1px 1px);
+  @include adjust-font-size-to($fs-xxxl);
+  margin: rhythm(9, $fs-xxxl) 0 rhythm(7, $fs-xxxl);
+  color: $white;
+  font-family: $primary-typeface;
+  font-weight: bold;
+  text-align: center;
+
+  @include breakpoint($mobile, $no-query: '.lt-ie9') {
+    @include adjust-font-size-to($fs-xxxxl);
+    margin: rhythm(9, $fs-xxxxl) 0 rhythm(7, $fs-xxxxl);
+  }
+}
+
+.section-heading {
+  margin: rhythm(4, $h2-font-size) 0 rhythm(2, $h2-font-size);
+}
+
+
+// BLOCKS
+
+.block-title {
+  @include adjust-font-size-to($fs-l);
+  margin-bottom: rhythm(4, $fs-l);
+  color: $gray-dark;
+  font-family: $primary-typeface;
+  text-transform: uppercase;
+}
+
+.block-title-condensed {
+  margin-bottom: rhythm(1, $fs-l);
+}
+
+.block-title-ruled {
+  @include text-shadow(rgba($black, .5) 0 1px 1px);
+  color: white;
+  text-align: center;
+  margin: 0 $w-gutter-half rhythm(4);
+  position: relative;
+  overflow: hidden;
+
+  &:after,
+  &:before {
+    @include box-shadow(rgba($black, .5) 0 1px 1px);
+    content: "";
+    position: absolute;
+    top: .66em;
+    display: block;
+    height: 1px;
+    width: 100%;
+    background-color: rgba($white, .6);
+  }
+
+  &:before {
+    left: 50%;
+    margin-left: 6em;
+  }
+
+  &:after {
+    right: 50%;
+    margin-right: 6em;
+  }
+}

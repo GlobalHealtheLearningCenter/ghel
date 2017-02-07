@@ -1,0 +1,45 @@
+// Authors select lists
+#edit-og-members-sub-elements-candidates,
+#edit-og-members-sub-elements-incumbents {
+  width: 100%;
+}
+
+// Labels
+.form-item-og-members-sub-elements-candidates,
+.form-item-og-members-sub-elements-incumbents {
+  > label {
+    @include adjust-font-size-to($fs-xxl);
+    font-weight: bold;
+  }
+}
+
+// Author altering button
+#edit-og-members-sub-elements-buttons-add,
+#edit-og-members-sub-elements-buttons-remove,
+.attribute-selector-buttons > input.form-submit {
+  @extend %button;
+  @extend %button-small;height: 24px;
+  @include link-colors($gray-dark, $gray-darker);
+  margin-bottom: rhythm(4);
+  border-color: $gray-light;
+  background-color: $white;
+
+  @include icon-sprite(left, false, 3em, 1px);
+  padding-left: 24px;
+
+  &:hover {
+    border-color: $gray-dark;
+  }
+
+  &:active{
+    @include box-shadow(
+      $gray 0 1px 1px inset,
+      rgba($gray, .4) 0 10px 5px inset);
+  }
+
+  &:first-child {
+    @include icon-sprite(right, false, 98%, 1px);
+    padding-left: 1em;
+    padding-right: 24px;
+  }
+}

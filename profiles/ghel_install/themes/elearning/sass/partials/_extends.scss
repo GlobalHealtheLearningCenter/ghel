@@ -1,0 +1,53 @@
+// Speech bubble
+%speech-bubble {
+  @include border-radius(8px);
+  @include box-shadow($gray-light 0 1px 0);
+  position: relative;
+  border: 1px solid $gray-lighter;
+  padding: rhythm(4) $w-gutter rhythm(2);
+  margin-bottom: rhythm(3);
+  font-style: italic;
+
+  &:after {
+    @include icon-sprite(bubble-tail);
+    content: "";
+    display: block;
+    position: absolute;
+    bottom: -18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+// Submitted by
+%submitted {
+
+  .submitted {
+    margin-bottom: 0.85714em;
+    color: #898989;
+    font-weight: 400;
+  }
+}
+
+// Group affiliation
+%affiliation {
+  margin-bottom: rhythm(6);
+
+  .field-label,
+  .field-items,
+  .field-item {
+    display: inline;
+  }
+
+  .field-label {
+    font-size: 1.3em;
+  }
+}
+
+// Highlighted title
+%title-highlighted {
+  @include adjust-font-size-to($h2-font-size);
+  @include adjust-leading-to(3);
+  @include rhythm(6, 0, 0, 2, $h2-font-size);
+  color: $accent-color;
+}

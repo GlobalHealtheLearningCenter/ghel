@@ -1,0 +1,55 @@
+.node-type-ghel-action-plan {
+
+  @extend %submitted;
+
+  .field {
+    margin-bottom: rhythm(6);
+  }
+
+  .field-label {
+    font-size: 1.3em;
+  }
+
+  .field-ghel-course-ref {
+    @include clearfix;
+
+    .field-label, .field-items {
+      float: left;
+    }
+
+    .field-label:after {
+      content: ": ";
+    }
+
+    .field-items {
+      font-size: 1.3em;
+      line-height: 1.5;
+      margin-left: 5px;
+    }
+  }
+
+  .field-ghel-share-in {
+    @extend %affiliation;
+
+    .field-label:after {
+      content: ": ";
+    }
+  }
+
+  .group-ghel-ap-iq {
+    margin: 0;
+    padding: 0;
+    border: none;
+
+    legend {
+      margin-left: -15px;
+      margin-bottom: rhythm(2);
+      font-size: 1.3em;
+      font-weight: bold;
+    }
+
+    .fieldset-wrapper {
+      padding: 0;
+    }
+  }
+}

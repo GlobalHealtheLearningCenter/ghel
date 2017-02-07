@@ -1,0 +1,84 @@
+@import "compass/css3";
+//  Glossary styles 
+
+@mixin glossary{
+
+  h3 {
+    font-size: 20px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #e1e1e1;
+  }
+
+  .item-list {
+    margin-left: 0;
+
+    ul {
+      margin-left: 0;
+      padding-left: 0;
+    }
+    
+    li {
+      list-style: none;
+    }
+  }
+
+  .views-row {
+    margin-bottom: 25px;
+  }
+
+  .views-field-name .field-content {
+    text-transform: capitalize;
+    font-weight: bold;
+    font-size: 1.2em;
+  }
+
+  .views-field-description {
+    margin-top: 5px;
+    display: block;
+  }
+
+}
+
+.view-ghel-glossary-terms, .view-ghel-glossary-details { 
+  @include glossary;
+}
+
+.view-ghel-glossary-details { 
+  
+  .view-grouping-header {
+    font-size: 1.2em;
+    margin: 40px 0;
+   
+    a {
+      font-weight: bold;
+    }
+  }
+}
+
+.view-display-id-attachment_1 {
+  
+  background: lighten(#A5AAB2, 30%);
+  padding: 20px 20px 0 20px;
+  
+  .views-summary {
+    
+    font-style: italic;
+    color: #999;
+    margin: 0 3px 20px 0;
+    display: inline-block;
+
+    a {
+      font-weight: bold;
+      font-style: normal;
+      margin-left: 3px;
+      padding: 0 3px;
+
+      &:hover, &:focus {
+        background: lighten(#999, 30%);
+        text-decoration: none;
+        @include border-radius(5px);
+
+      }
+    }
+  }
+}

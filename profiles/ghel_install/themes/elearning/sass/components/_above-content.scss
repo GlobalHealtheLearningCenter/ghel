@@ -1,0 +1,9 @@
+#above-content {
+   background-color: #2d2e31;
+   background-size: 2px 2px, cover;
+}
+
+.lt-ie9 #above-content {
+   background-color: #2d2e31;
+   background-size: cover;
+}

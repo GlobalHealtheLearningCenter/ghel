@@ -1,0 +1,21 @@
+.nav-local-tasks {
+  @extend .nav;
+  @extend .nav-inline;
+
+  > li {
+
+  }
+
+  > li > a {
+    @extend %button;
+    @extend %button-white;
+    @extend %button-small;
+    margin-right: $w-gutter-half;
+
+    &.active {
+      border-color: $orange;
+      background-color: $orange;
+      color: $white;
+    }
+  }
+}

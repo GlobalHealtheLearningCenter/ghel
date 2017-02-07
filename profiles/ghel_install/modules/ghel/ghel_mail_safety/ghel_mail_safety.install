@@ -1,0 +1,8 @@
+<?php
+
+/**
+ * Implements hook_update_N().
+ */
+function ghel_mail_safety_update_7000() {
+  variable_set('ghel_safety', -1);
+}

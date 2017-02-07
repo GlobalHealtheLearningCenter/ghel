@@ -1,0 +1,250 @@
+<?php
+
+/**
+ * @file
+ *   Provides node access permissions based on workflow states and group roles.
+ *   (mostly copied from workflow_access.module)
+ */
+
+/**
+ * Implements hook_node_grants().
+ *
+ * Use the group roles the user is in as grants
+ */
+function og_workflow_access_node_grants($account, $op) {
+  $groups = og_get_groups_by_user($account);
+  if (!$groups['node']) {
+    return array();
+  }
+  $group_ids = array_keys($groups['node']);
+  $roles = array();
+  foreach ($group_ids as $gid) {
+    $group_roles = og_get_user_roles('node', $gid, $account->uid, TRUE);
+    foreach ($group_roles as $rid => $role) {
+      $roles[] = $rid;
+    }
+  }
+  return array(
+    'og_workflow_access' => $roles,
+    'og_workflow_access_owner' => array($account->uid),
+  );
+}
+
+
+/**
+ * Implements hook_node_access_records().
+ *
+ * Returns a list of grant records for the passed in node object.
+ */
+function og_workflow_access_node_access_records($node) {
+  $grants = array();
+  if (($state = workflow_get_workflow_node_by_nid($node->nid)) && (og_is_group_content_type('node', $node->type) || og_is_group('node', $node))) {
+    $state = workflow_get_workflow_states_by_sid($state->sid);
+    foreach (og_workflow_access_get_workflow_access_by_sid($state->sid) as $grant) {
+      $grants[] = array(
+        'realm' => ($grant->rid == -1) ? 'og_workflow_access_owner' : 'og_workflow_access',
+        'gid' => ($grant->rid == -1) ? $node->uid : $grant->rid,
+        'grant_view' => $grant->grant_view,
+        'grant_update' => $grant->grant_update,
+        'grant_delete' => $grant->grant_delete,
+        'priority' => 0,
+      );
+    }
+  }
+  return $grants;
+}
+
+
+/**
+ * Implements hook_node_access_explain().
+ */
+function og_workflow_access_node_access_explain($row) {
+  static $interpretations = array();
+  switch ($row->realm) {
+    case 'og_workflow_access_owner':
+      $interpretations[$row->gid] = t('Organic Groups Workflow Access: author of the content may access');
+      break;
+    case 'og_workflow_access':
+      $roles = og_workflow_all_roles();
+      $interpretations[$row->gid] = t('Organic Groups Workflow Access: %role may access', array('%role' => $roles[$row->gid]));
+      break;
+  }
+  return (!empty($interpretations[$row->gid]) ? $interpretations[$row->gid] : NULL);
+}
+
+
+/**
+ * Implements hook_node_access().
+ */
+function og_workflow_access_node_access($node, $op, $account) {
+  if (is_string($node)) {
+    // we cannot decide about node types in general
+    return NODE_ACCESS_IGNORE;
+  }
+  if (!og_is_group_content_type('node', $node->type) && !og_is_group('node', $node)) {
+    return NODE_ACCESS_IGNORE;
+  }
+  if ($op == 'view') {
+    return NODE_ACCESS_IGNORE;
+  }
+  if ($state = workflow_get_workflow_node_by_nid($node->nid)) {
+    $state = workflow_get_workflow_states_by_sid($state->sid);
+    $user_roles = og_workflow_user_roles_for_node($node, $account);
+    foreach (og_workflow_access_get_workflow_access_by_sid($state->sid) as $grant) {
+      if (in_array($grant->rid, $user_roles)) {
+        if ($op == 'update' && $grant->grant_update) {
+          return NODE_ACCESS_ALLOW;
+        }
+        if ($op == 'delete' && $grant->grant_delete) {
+          return NODE_ACCESS_ALLOW;
+        }
+      }
+    }
+    return NODE_ACCESS_DENY;
+  }
+  return NODE_ACCESS_IGNORE;
+}
+
+
+/**
+ * Implements hook_form_alter().
+ *
+ * Add a "three dimensional" (state, role, permission type) configuration
+ * interface to the og workflow edit form.
+ */
+function og_workflow_access_form_og_workflow_admin_form_alter(&$form, $form_state) {
+  $form['og_workflow_access'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Access control'),
+    '#tree' => TRUE,
+  );
+
+  // A list of roles available on the site and our
+  // special -1 role used to represent the node author.
+
+  $roles = og_workflow_all_roles();
+  unset($roles['author']);
+  $roles[-1] = t('author');
+  // Add a table for every workflow state.
+  $options = array('status' => 1);
+  foreach (workflow_get_workflow_states_by_wid($form['wid']['#value'], $options) as $state) {
+    if ($state->state == t('(creation)')) {
+      // No need to set perms on creation.
+      continue;
+    }
+    $view = $update = $delete = array();
+    $count = 0;
+    foreach (og_workflow_access_get_workflow_access_by_sid($state->sid) as $access) {
+      $count++;
+      if ($access->grant_view) {
+        $view[] = $access->rid;
+      }
+      if ($access->grant_update) {
+        $update[] = $access->rid;
+      }
+      if ($access->grant_delete) {
+        $delete[] = $access->rid;
+      }
+    }
+    // TODO better tables using a #theme function instead of direct #prefixing
+    $form['og_workflow_access'][$state->sid] = array(
+      '#type' => 'fieldset',
+      '#title' => t('@state', array('@state' => $state->state)),
+      '#collapsible' => TRUE,
+      '#tree' => TRUE,
+    );
+    $form['og_workflow_access'][$state->sid]['view'] = array(
+      '#type' => 'checkboxes',
+      '#options' => $roles,
+      '#default_value' => $view,
+      '#title' => t('Group roles who can view posts in this state'),
+      '#prefix' => '<table width="100%" style="border: 0;"><tbody style="border: 0;"><tr><td>',
+    );
+    $form['og_workflow_access'][$state->sid]['update'] = array(
+      '#type' => 'checkboxes',
+      '#options' => $roles,
+      '#default_value' => $update,
+      '#title' => t('Group roles who can edit posts in this state'),
+      '#prefix' => "</td><td>",
+    );
+    $form['og_workflow_access'][$state->sid]['delete'] = array(
+      '#type' => 'checkboxes',
+      '#options' => $roles,
+      '#default_value' => $delete,
+      '#title' => t('Group roles who can delete posts in this state'),
+      '#prefix' => "</td><td>",
+      '#suffix' => "</td></tr></tbody></table>",
+    );
+  }
+  // Place our block comfortably down the page.
+  $form['submit']['#weight'] = 10;
+  $form['#submit'][] = 'og_workflow_access_form_submit';
+}
+
+
+/**
+ * Store permission settings for og workflow states.
+ */
+function og_workflow_access_form_submit($form, $form_state) {
+  foreach ($form_state['values']['og_workflow_access'] as $sid => $access) {
+    // Ignore irrelevant keys.
+    if (!is_numeric($sid)) {
+      continue;
+    }
+    $grants = array();
+    foreach ($access['view'] as $rid => $checked) {
+      $data = array(
+        'sid' => $sid,
+        'rid' => $rid,
+        'grant_view' => (!empty($checked)) ? (bool) $checked : 0,
+        'grant_update' => (!empty($access['update'][$rid])) ? (bool) $access['update'][$rid] : 0,
+        'grant_delete' => (!empty($access['delete'][$rid])) ? (bool) $access['delete'][$rid] : 0,
+      );
+      $id = og_workflow_access_insert_workflow_access_by_sid($data);
+    }
+    // Update all nodes having the same workflow state to reflect new settings.
+    foreach (workflow_get_workflow_node_by_sid($sid) as $data) {
+      // Instead of trying to construct what the grants should be per node as we save.
+      // Let's fall back on existing node grant systems that will find it for us.
+      $node = node_load($data->nid);
+      node_access_acquire_grants($node);
+    }
+  }
+  drupal_set_message(t('Organic Groups Workflow Access permissions updated.'));
+}
+
+
+/**
+ * DB functions - all DB interactions are isolated here to make for easy updating should our schema change.
+ */
+
+/**
+ * Given a sid, retrieve the access information and return the row(s).
+ */
+function og_workflow_access_get_workflow_access_by_sid($sid) {
+  $results = db_query('SELECT * from {og_workflow_access} where sid = :sid', array(':sid' => $sid));
+  return $results->fetchAll();
+}
+
+/**
+ * Given a sid and a rid (the  unique key), delete all access data for this state.
+ */
+function og_workflow_access_delete_workflow_access_by_sid_rid($sid, $rid) {
+  db_delete('og_workflow_access')->condition('sid', $sid)->condition('rid', $rid)->execute();
+}
+
+/**
+ * Given a sid, delete all access data for this state.
+ */
+function og_workflow_access_delete_workflow_access_by_sid($sid) {
+  db_delete('og_workflow_access')->condition('sid', $sid)->execute();
+}
+
+/**
+ * Given data, insert into og workflow access - we never update.
+ */
+function og_workflow_access_insert_workflow_access_by_sid(&$data) {
+  $data = (object) $data;
+  og_workflow_access_delete_workflow_access_by_sid_rid($data->sid, $data->rid);
+  drupal_write_record('og_workflow_access', $data);
+}

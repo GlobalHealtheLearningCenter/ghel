@@ -1,0 +1,377 @@
+<?php
+/**
+ * @file
+ * Declare modifications for the table of contents entity reference field.
+ */
+
+/**
+ * Implements hook_theme().
+ */
+function ghel_toc_widget_theme() {
+  return array(
+    'ghel_toc_widget_section' => array(
+      'render element' => 'section',
+    ),
+    'ghel_toc_widget_non_section' => array(
+      'render element' => 'non_section',
+    ),
+    'ghel_toc_widget_nav_row' => array(
+      'render element' => 'row',
+    ),
+  );
+}
+
+/**
+ * Theme function for a field section.
+ */
+function theme_ghel_toc_widget_section($variables) {
+  global $language_url;
+
+  $section = $variables['section'];
+  $path = $section['#path'];
+  if (($path == $_GET['q'] || ($path == '<front>' && drupal_is_front_page())) &&
+      (empty($options['language']) || $options['language']->language == $language_url->language)) {
+    $section['#options']['attributes']['class'][] = 'course-section-active';
+  }
+  $section['#options']['attributes']['class'][] = 'session-title';
+
+  $output = '<h4 ' . drupal_attributes($section['#options']['attributes']) . '>';
+  $output .= '<a href="#" ' . drupal_attributes(array('class' => array('gheltocselector'))) . '>' . check_plain($section['#text']) . '</a>&nbsp;';
+  $output .= l(t('Go to Session'), $section['#path'], array('attributes' => array('class' => array('session-link'))));
+  $output .= "</h4>\n";
+  $output .= $section['#children'];
+  return $output;
+}
+
+/**
+ * Theme function for a non-section.
+ */
+function theme_ghel_toc_widget_non_section($variables) {
+  global $language_url;
+
+  $nonsection = $variables['non_section'];
+  $path = $nonsection['#path'];
+  if (($path == $_GET['q']
+      || $path == arg(0) . '/' . arg(1)
+      || $path == '<front>' && drupal_is_front_page()
+    )
+    && (empty($options['language'])
+      || $options['language']->language == $language_url->language)
+  ) {
+    $nonsection['#options']['attributes']['class'][] = 'course-page-active';
+  }
+  $output = '<div ' . drupal_attributes($nonsection['#options']['attributes']) . '>';
+  $output .= l($nonsection['#text'], $nonsection['#path'], $nonsection['#options']);
+  $output .= $nonsection['#children'];
+  $output .= "</div>\n";
+  return $output;
+}
+
+/**
+ * Theme function.
+ */
+function theme_ghel_toc_widget_nav_row($variables) {
+  $row = $variables['row'];
+  $output = '<div ' . drupal_attributes($row['#options']['attributes']) . '>';
+  $output .= '<span class="course-title">' . $row['#link'] . '</span>';
+  $output .= '<span class="workflow-state">' . $row['#workflow'] . '</span>';
+  //$output .= '<span class="course-edit">' . $row['#edit_link'] . '</span>';
+  $output .= '</div>';
+  return $output;
+}
+
+
+/**
+ * Implements hook_field_formatter_info().
+ */
+function ghel_toc_widget_field_formatter_info() {
+  return array(
+    'ghel_toc_widget_formatter' => array(
+      'label' => t('GHeL Table of Contents'),
+      'description' => t('Provides a table of contents renderer for entityreference fields.'),
+      'field types' => array('entityreference'),
+      'settings' => array(
+        'section_bundles' => array(),
+        'contextual_info' => TRUE,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_formatter_settings_form().
+ */
+function ghel_toc_widget_field_formatter_settings_form($field, $instance, $view_mode, $form, &$form_state) {
+  $display = $instance['display'][$view_mode];
+  $settings = $display['settings'];
+
+  $element['section_bundles'] = array(
+    '#title' => t('Section Breaks'),
+    '#description' => t('Select the bundle types that will indicate section breaks.'),
+    '#type' => 'select',
+    '#multiple' => TRUE,
+    '#default_value' => $settings['section_bundles'],
+    '#options' => $field['settings']['handler_settings']['target_bundles'],
+  );
+
+  $element['contextual_info'] = array(
+    '#title' => t('Include contextual information'),
+    '#description' => t('Links can be included with contextual information useful for providing more related information'),
+    '#type' => 'checkbox',
+    '#default_value' => $settings['contextual_info'],
+  );
+
+  return $element;
+}
+
+/**
+ * Implements hook_field_formatter_settings_summary().
+ */
+function ghel_toc_widget_field_formatter_settings_summary($field, $instance, $view_mode) {
+  $settings = $instance['display'][$view_mode]['settings'];
+
+  $summary = array();
+
+  if (!empty($settings['section_bundles'])) {
+    $summary[] = t('Section bundles: %bundles', array('%bundles' => implode(', ', $settings['section_bundles'])));
+  }
+  else {
+    $summary[] = t('No configured section Bundles');
+  }
+
+  if ($settings['contextual_info']) {
+    $summary[] = t('Contextual Info: Yes');
+  }
+  else {
+    $summary[] = t('Contextual Info: No');
+  }
+
+  if (empty($summary)) {
+    $summary[] = t('Not configured');
+  }
+
+  return implode('<br />', $summary);
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ *
+ * @see entityreference_field_formatter_view
+ */
+function ghel_toc_widget_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $element = array();
+  $settings = $display['settings'];
+
+  $section_types = $display['settings']['section_bundles'];
+  $contextual = $display['settings']['contextual_info'];
+  $sections = array();
+
+  $result = array();
+
+  $settings = $display['settings'];
+  list($eid, $evid, $ebundle) = entity_extract_ids($entity_type, $entity);
+
+  switch ($display['type']) {
+    case 'ghel_toc_widget_formatter':
+      foreach ($items as $delta => $item) {
+        $handler = entityreference_get_selection_handler($field, $instance);
+        $label = $handler->getLabel($item['entity']);
+        list($id, $vid, $bundle) = entity_extract_ids($entity_type, $item['entity']);
+        if ($uri = entity_uri($field['settings']['target_type'], $item['entity'])) {
+
+          $options = array(
+            'attributes' => array(
+              'class' => array(
+                str_replace('_', '-', $entity_type . '--' . $bundle),
+              ),
+            ),
+            'html' => FALSE,
+          );
+
+          if ($settings['contextual_info']) {
+            $options['query']['erid'] = $entity_type . '--' . $eid . '--' . $instance['id'];
+          }
+
+          $link = array(
+            '#text' => $label,
+            '#path' => $uri['path'],
+            '#options' => $options,
+          );
+
+          if (!empty($settings['section_bundles'])) {
+            if (in_array($bundle, $settings['section_bundles'])) {
+              $link['#options']['attributes']['class'][] = 'ghel-toc-section';
+              $link['#theme'] = 'ghel_toc_widget_section';
+            }
+            else {
+              $link['#options']['attributes']['class'][] = 'ghel-toc-non-section';
+              $link['#theme'] = 'ghel_toc_widget_non_section';
+            }
+          }
+          else {
+            $link['#theme'] = 'link';
+          }
+
+          $result[$delta] = $link;
+        }
+        else {
+          $result[$delta] = array('#markup' => check_plain($label));
+        }
+      }
+  }
+
+  return $result;
+
+}
+
+/**
+ * Implements hook_field_formatter_prepare_view().
+ *
+ * @see entityreference_format_field_formatter_prepare_view
+ */
+function ghel_toc_widget_field_formatter_prepare_view($entity_type, $entities, $field, $instances, $langcode, &$items, $displays) {
+  entityreference_field_formatter_prepare_view($entity_type, $entities, $field, $instances, $langcode, $items, $displays);
+}
+
+/**
+ * Helper function to parse a query parameter to extract our various elements.
+ *
+ * Alternatively to force a query parameter if the current node has fields of
+ * type entity reference.
+ *
+ * @param string $erid
+ *   The query parameter to parse or NULL if we should use the erid via the
+ *   drupal_get_query_parameters()
+ *
+ * @return mixed
+ *   FALSE if the erid is invalid or not provided or an array containing
+ *   entity_type, entity_object, and field_config_instance_id
+ */
+function ghel_toc_widget_parse_erid($erid = NULL) {
+  if (empty($erid)) {
+    $params = drupal_get_query_parameters();
+    if (!empty($params['erid'])) {
+      $erid = $params['erid'];
+    }
+    else {
+      if ($menu = menu_get_object()) {
+        // Get the course object.
+        if ($object = ghel_course_get_course($menu)) {
+          $instances = field_info_instances('node', $object->type);
+          foreach ($instances as $field_name => $field) {
+
+            // @todo use of default display.
+            // Load the settings if the field is entityreference and has
+            // contextual_info set.
+            if ($field['widget']['module'] == 'entityreference' && !empty($field['display']['default']['settings']['contextual_info'])) {
+              $object->bundle = $object->type;
+              return array(
+                'node',
+                $object,
+                $field['id'],
+              );
+            }
+          }
+        }
+      }
+      return FALSE;
+    }
+  }
+
+  // Format is ENTITYTYPE--ENITTYTID--FIELDCONFIGINSTANCEID.
+  $exploded = explode('--', $erid, 3);
+  if (count($exploded) === 3 && is_numeric($exploded[1]) && is_numeric($exploded[2])) {
+    $entities = entity_load($exploded[0], array($exploded[1]));
+    $entity = array_pop($entities);
+
+    if (!empty($entity)) {
+      $exploded[1] = $entity;
+      return $exploded;
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function ghel_toc_widget_block_info() {
+  $blocks['navigation'] = array(
+    'info' => 'Course navigation',
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function ghel_toc_widget_block_view($delta = '') {
+  $block = array();
+
+  switch ($delta) {
+    case 'navigation':
+      return ghel_toc_widget_block_navigation();
+      break;
+  }
+  return $block;
+}
+
+/**
+ * Get the corresponding field based on field_config_instance_id().
+ *
+ * @todo see if there is a better approach via field API. Seems like there
+ *       should be
+ *
+ * @param string $entity_type
+ *   entity type to return fields for (eg. node)
+ * @param mixed $entity
+ *   a fully loaded entity object or an entity_id
+ * @param int $field_config_instance_id
+ *   The field_config_instance_id to return the field for
+ *
+ * @return array
+ *   empty or a field array corresponding to field instance
+ */
+function ghel_toc_widget_get_field_instance($entity_type, $entity, $field_config_instance_id) {
+  $return = array();
+  if (is_numeric($entity)) {
+    $entities = entity_load($entity_type, array($entity));
+    $entity = array_pop($entities);
+  }
+
+  if (!empty($entity) && !empty($field_config_instance_id)) {
+    list($id, $vid, $bundle) = entity_extract_ids($entity_type, $entity);
+
+    $instances = field_info_instances($entity_type, $bundle);
+    foreach ($instances as $field_name => $field) {
+      if ($field['id'] == $field_config_instance_id) {
+        $return = $field;
+        break;
+
+      }
+    }
+  }
+
+  return $return;
+}
+
+/**
+ * Get navigation block based on the erid trail. Requires contextual_info.
+ */
+function ghel_toc_widget_block_navigation() {
+  $block = array();
+
+  if (list($entity_type, $entity, $field_config_instance_id) = ghel_toc_widget_parse_erid()) {
+    $field = ghel_toc_widget_get_field_instance($entity_type, $entity, $field_config_instance_id);
+
+    if (!empty($field)) {
+      // @todo use of default display
+      $output = field_view_field($entity_type, $entity, $field['field_name'], $field['display']['default']);
+
+      $output['#label_display'] = 'hidden';
+      $block['subject'] = l($entity->title, 'node/' . $entity->nid);
+      $block['content'] = render($output);
+    }
+  }
+  return $block;
+}

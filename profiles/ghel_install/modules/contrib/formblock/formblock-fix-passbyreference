@@ -1,0 +1,19 @@
+diff --git a/profiles/ghel_install/modules/contrib/formblock/formblock.module b/profiles/ghel_install/modules/contrib/formblock/formblock.module
+index 7a4a442..c8dbd41 100644
+--- a/profiles/ghel_install/modules/contrib/formblock/formblock.module
++++ b/profiles/ghel_install/modules/contrib/formblock/formblock.module
+@@ -264,11 +264,12 @@ function formblock_get_block($type) {
+     // Grab the current active entity as a starting point
+     $entity = menu_get_object();
+ 
+-    $instance = reset(field_read_instances(array(
++    $instances = field_read_instances(array(
+       'entity_type' => $entity_type,
+       'bundle' => $request_bundle,
+       'field_name' => $field_name,
+-    )));
++    ));
++    $instance = reset($instances);
+ 
+     // Allow other modules to suggest a different entity
+     drupal_alter('formblock_field_form_object', $entity, $instance);

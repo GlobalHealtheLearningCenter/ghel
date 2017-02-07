@@ -1,0 +1,273 @@
+/*
+ * Definitions that apply while viewing questions
+ */
+/* line 12, ../../sass/override/quiz.scss */
+.question_type_name {
+  font-style: italic;
+}
+
+/*
+ * Definitions that apply while taking the quiz.
+ */
+/* line 19, ../../sass/override/quiz.scss */
+#quiz_progress {
+  font-style: italic;
+  font-size: 80%;
+}
+
+/* line 24, ../../sass/override/quiz.scss */
+#quiz_score_possible, #quiz_score_percent {
+  font-weight: bold;
+}
+
+/* line 28, ../../sass/override/quiz.scss */
+td.quiz_summary_qcell {
+  vertical-align: top;
+  padding: 1em 1em 0em 0em;
+}
+
+/* line 33, ../../sass/override/quiz.scss */
+td.quiz_summary_qcell table tr {
+  background: transparent;
+}
+
+/* line 37, ../../sass/override/quiz.scss */
+td.quiz_summary_qcell table td {
+  vertical-align: top;
+  padding: .5em;
+}
+
+/* line 42, ../../sass/override/quiz.scss */
+.quiz_answer_feedback {
+  font-style: italic;
+}
+
+/* line 50, ../../sass/override/quiz.scss */
+.feedback-icon {
+  display: inline;
+}
+
+/* line 54, ../../sass/override/quiz.scss */
+.add-questions {
+  padding: 0 0 1em 2em;
+}
+
+/* line 58, ../../sass/override/quiz.scss */
+.hidden-question {
+  display: none;
+}
+
+/* line 62, ../../sass/override/quiz.scss */
+.quiz-question-browser-row.odd {
+  background-color: #e7e7e7;
+}
+
+/* line 66, ../../sass/override/quiz.scss */
+.quiz-question-browser-row.even {
+  background-color: #fbfbfb;
+}
+
+/* line 70, ../../sass/override/quiz.scss */
+#quiz-question-browser-filters {
+  /*background-color: black;*/
+  /* Black bg in seven theme looks horrible. */
+  background: none repeat scroll 0 0 #E1E2DC;
+  border-color: #BEBFB9;
+  border-style: solid;
+  border-width: 1px;
+  font-weight: normal;
+  padding: 3px 10px;
+  text-transform: uppercase;
+}
+
+/* line 82, ../../sass/override/quiz.scss */
+#quiz-question-browser-filters td.active {
+  background-color: #666;
+}
+
+/* line 86, ../../sass/override/quiz.scss */
+.quiz-question-browser-row.odd td.active {
+  background-color: #e2e2f9;
+}
+
+/* line 90, ../../sass/override/quiz.scss */
+.quiz-question-browser-row.even td.active {
+  background-color: #f8f8ff;
+}
+
+/* line 94, ../../sass/override/quiz.scss */
+tr.selected.quiz-question-browser-row td, tr.selected.quiz-question-browser-row td.active {
+  background: none repeat scroll 0 0 #505050;
+  color: #FFF;
+}
+
+/* line 99, ../../sass/override/quiz.scss */
+.browser-table th {
+  border-bottom: 0px solid #666666;
+}
+
+/* line 103, ../../sass/override/quiz.scss */
+.q-staying {
+  display: inline;
+  float: left;
+  margin-right: 8px;
+}
+
+/*
+ * Definitions that apply on the quiz report pages.
+ */
+/* line 114, ../../sass/override/quiz.scss */
+dl.quiz-report {
+  margin: 0;
+  padding: 0;
+}
+
+/* line 119, ../../sass/override/quiz.scss */
+dl.quiz-report dt {
+  background: #eee;
+  border-top: solid 1px gray;
+  padding-left: 5px;
+}
+
+/* line 125, ../../sass/override/quiz.scss */
+dl.quiz-report dt div.quiz-report-score-container {
+  border-right: solid 1px gray;
+  border-left: solid 1px gray;
+  border-bottom: solid 1px gray;
+  float: right;
+  padding: 4px 6px;
+}
+
+/* line 133, ../../sass/override/quiz.scss */
+dl.quiz-report dt div.quiz-report-score-container span div.form-item {
+  display: inline;
+}
+
+/* line 137, ../../sass/override/quiz.scss */
+dl.quiz-report dd {
+  margin: 10px 0 50px 0;
+}
+
+/* line 141, ../../sass/override/quiz.scss */
+.quiz-report-skipped {
+  float: right;
+}
+
+/* line 145, ../../sass/override/quiz.scss */
+.q-correct {
+  background-color: #DDFFDD;
+}
+
+/* line 149, ../../sass/override/quiz.scss */
+.q-wrong {
+  background-color: #FFCCCC;
+}
+
+/* line 153, ../../sass/override/quiz.scss */
+.q-waiting {
+  background-color: #FFFFDD;
+}
+
+/* line 157, ../../sass/override/quiz.scss */
+.quiz-passed {
+  color: #00dd00;
+}
+
+/* line 161, ../../sass/override/quiz.scss */
+.quiz-failed {
+  color: #dd0000;
+}
+
+/* line 165, ../../sass/override/quiz.scss */
+#no-questions {
+  font-style: italic;
+}
+
+/* line 169, ../../sass/override/quiz.scss */
+#quiz-view-table {
+  width: auto;
+  border-collapse: separate;
+  border: none;
+  padding: 0px;
+  margin: 12px 0;
+}
+
+/* line 177, ../../sass/override/quiz.scss */
+#quiz-start-quiz-button-form div {
+  padding: 0px;
+  margin: 24px 0px;
+}
+
+/* line 182, ../../sass/override/quiz.scss */
+#quiz-start-quiz-button-form input {
+  margin: 0px;
+}
+
+/* line 186, ../../sass/override/quiz.scss */
+#quiz-view-table td {
+  padding: 6px 6px 6px 0px;
+  margin: 0px;
+  line-height: 110%;
+}
+
+/* line 192, ../../sass/override/quiz.scss */
+#browser-pager .pager-last {
+  display: none;
+}
+
+/* line 195, ../../sass/override/quiz.scss */
+#browser-pager .pager-first {
+  display: none;
+}
+
+/* line 199, ../../sass/override/quiz.scss */
+.matching-tbl {
+  width: auto;
+  border-collapse: separate;
+  padding: 0px;
+  margin: 0px;
+  border: 0px;
+  line-height: 100%;
+}
+
+/* line 208, ../../sass/override/quiz.scss */
+.matching-tbl p, .matching-tbl select, .matching-tbl div {
+  padding: 0px;
+  margin: 0px;
+  line-height: 100%;
+}
+
+/* line 214, ../../sass/override/quiz.scss */
+.matching-tbl td {
+  padding: 2px;
+  margin: 2px;
+  line-height: 100%;
+}
+
+/* line 220, ../../sass/override/quiz.scss */
+.quiz-solution {
+  border-left: solid 5px #00ff00;
+  padding-left: 3px;
+}
+
+/* line 225, ../../sass/override/quiz.scss */
+.quiz-answer-hidden {
+  font-style: italic;
+}
+
+/* line 229, ../../sass/override/quiz.scss */
+#quiz-jumper {
+  display: none;
+}
+
+/* line 233, ../../sass/override/quiz.scss */
+#quiz-categorized-form #autocomplete {
+  overflow: auto;
+  max-height: 300px;
+}
+
+/* line 241, ../../sass/override/quiz.scss */
+#quiz-report-form dd table.sticky-table td, #quiz-report-form dd table.sticky-table th {
+  width: 22%;
+  padding: 0.5%;
+}

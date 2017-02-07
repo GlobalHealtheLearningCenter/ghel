@@ -1,0 +1,263 @@
+<?php
+/**
+ * @file
+ * @todo adjust access arguments to proper og access callback
+ */
+
+/**
+ * Implements of hook_menu().
+ */
+function ghel_attribute_selector_menu() {
+  $items['node/%node/authors'] = array(
+    'title' => 'Participants',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ghel_attribute_selector_roles_form', 1),
+    'access callback' => 'ghel_course_structure_access',
+    'access arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_menu_alter().
+ */
+function ghel_attribute_selector_menu_alter(&$items) {
+  // Only let users who can administer og see the group tab (if it is a group).
+  $items['node/%/group']['access callback'] = 'ghel_attribute_selector_group_tab_access';
+}
+
+/**
+ * Define access control for this tab.
+ */
+function ghel_attribute_selector_group_tab_access($entity_type, $etid) {
+  $entity = entity_load_single($entity_type, $etid);
+  if ($entity_type == 'node' && $entity->type == 'ghel_course') {
+    return og_user_access_entity('update group', $entity_type, $entity);
+  }
+
+  $einfo = entity_get_info($entity_type);
+  list($id, $rid, $bundle) = entity_extract_ids($entity_type, $entity);
+  if (og_is_group_type($entity_type, $bundle)) {
+    return og_user_access_entity('administer group', $entity_type, $entity);
+  }
+  return FALSE;
+}
+
+/**
+ * Form callback to define list of users that can be added to group.
+ */
+function ghel_attribute_selector_potential_course_authors($role, $element, &$form_state) {
+  $author_roles = array('staff');
+
+  $gid = $form_state['values']['gid'];
+  $query = db_select('users', 'u');
+  $query->join('users_roles', 'ur', 'ur.uid = u.uid');
+  $query->join('role', 'r', 'r.rid = ur.rid');
+  $query->fields('u', array('uid', 'name'))
+    ->condition('r.name', $author_roles, 'IN')
+    ->condition('u.status', 1)
+    ->groupBy('u.uid')
+    ->orderBy('u.name');
+  $candidates = $query->execute()
+    ->fetchAllKeyed();
+
+  $incumbents = array();
+  $incumbents += ghel_attribute_selector_members_by_role($role, $element, $form_state);
+
+  return array_diff_key($candidates, $incumbents);
+}
+
+/**
+ * Helper function since OG_AUTHENTICATED_ROLE is not really a role.
+ *
+ * This function also adjusts the standard og strings to GHeL specific strings,
+ * and removes the OG_ANONYMOUSE_ROLE
+ *
+ * @see og_roles()
+ *
+ * @return array
+ *   Keyed by role id with the role name as values.
+ */
+function ghel_attribute_selector_get_roles($group_type, $gid) {
+
+  $og_roles = og_roles('node', $group_type, $gid, FALSE, TRUE);
+  $og_roles = array_diff($og_roles, array(OG_ANONYMOUS_ROLE));
+
+  // Remove the "unprivileged" role(s)
+  unset($og_roles[GHEL_COURSE_ADMINISTRATOR_UNPRIVILEGED]);
+
+  return $og_roles;
+}
+
+/**
+ * Form definition for applying og roles.
+ */
+function ghel_attribute_selector_roles_form($form, &$form_state, $node) {
+  $group = ghel_course_get_course($node);
+
+  $form['gid'] = array('#type' => 'value', '#value' => $group->nid);
+
+  $og_roles = ghel_attribute_selector_get_roles('ghel_course', $group->nid);
+
+  $form['og_members'] = array(
+    '#type' => 'attribute_selector',
+    '#attribute' => $og_roles,
+    '#callbacks' => array(
+      '#candidates' => 'ghel_attribute_selector_potential_course_authors',
+      '#incumbents' => 'ghel_attribute_selector_members_by_role',
+      '#add' => 'ghel_attribute_selector_add_role',
+      '#remove' => 'ghel_attribute_selector_remove_role',
+    ),
+    '#title' => t('Add course participants to !label', array('!label' => l($group->title, 'node/' . $group->nid))),
+    '#sub-title' => array(
+      '#candidates' => "Potential @attributes",
+      '#attribute' => 'Membership State',
+      '#incumbents' => '@attributes',
+      '#add' => 'Add "@attribute(s)"',
+      '#remove' => 'Remove "@attribute(s)"',
+    ),
+    '#description' => t('Note that all "administrator members" are also members.'),
+  );
+
+  return $form;
+
+}
+
+/**
+ *  Return users with the given role.
+ */
+function ghel_attribute_selector_members_by_role($role, $element, &$form_state) {
+  $gid = $form_state['values']['gid'];
+
+  $og_roles = og_roles('node', 'ghel_course', $gid, FALSE, TRUE);
+  $og_roles = array_diff($og_roles, array(OG_ANONYMOUS_ROLE));
+
+  if ($og_roles[$role] == OG_AUTHENTICATED_ROLE) {
+    // Get group members... this is not really a role.
+    $query = db_select('og_membership', 'ogm');
+    $query->join('users', 'u', 'ogm.etid = u.uid');
+    $users = $query->condition('ogm.field_name', 'og_user_node')
+      ->condition('ogm.entity_type', 'user')
+      ->condition('ogm.gid', $gid)
+      ->fields('u', array('uid', 'name'))
+      ->orderBy('u.name')
+      ->execute()
+      ->fetchAllKeyed();
+  }
+  else {
+    $query = db_select('og_users_roles', 'ogu');
+    $query->join('users', 'u', 'ogu.uid = u.uid');
+    $users = $query->fields('u', array('uid', 'name'))
+      ->condition('u.status', 1)
+      ->condition('ogu.rid', $role)
+      ->condition('ogu.group_type', 'node')
+      ->condition('ogu.gid', $gid)
+      ->orderBy('u.name')
+      ->execute()
+      ->fetchAllKeyed();
+  }
+  return $users;
+}
+
+/**
+ * Form submit callback to add users to the selected role.
+ *
+ * Also and ensure they have they have an active og_membership.
+ */
+function ghel_attribute_selector_add_role($form, &$form_state) {
+  $button = $form_state['triggering_element'];
+  if (!empty($button['#elementname'])) {
+    $field = $button['#elementname'];
+    $values = $form_state['values'][$field];
+
+    $gid = $form_state['values']['gid'];
+    $group = node_load($gid);
+
+    $role = $values['attribute'];
+
+    $og_roles = ghel_attribute_selector_get_roles('ghel_course', $gid);
+
+    // Add the roles to the selected users.
+    $accounts = user_load_multiple($values['candidates']);
+    foreach ($accounts as $account) {
+      // Make sure they have an active membership status default to the
+      // first og_membership field name.
+      og_ungroup('node', $gid, 'user', $account);
+      $field_names = og_get_group_audience_fields('user', 'user');
+      $field_name = key($field_names);
+      $og_membership = og_membership_create('node', $gid, 'user', 0, $field_name);
+
+      // Make sure this is a new user entry.
+      unset($og_membership->id);
+      $og_membership->is_new = TRUE;
+
+      $og_membership->etid = $account->uid;
+      $og_membership->state = OG_STATE_ACTIVE;
+      $og_membership->save();
+
+      // Now add the role.
+      og_role_grant('node', $gid, $account->uid, $role);
+
+      drupal_set_message(t('%user has been added as a %role to %group.', array(
+        '%user' => format_username($account),
+        '%group' => $group->title,
+        '%role' => $og_roles[$role]))
+      );
+    }
+  }
+}
+
+/**
+ * Form submit callback to remove users from the selected role.
+ */
+function ghel_attribute_selector_remove_role($form, &$form_state) {
+  $button = $form_state['triggering_element'];
+  if (!empty($button['#elementname'])) {
+    $field = $button['#elementname'];
+    $values = $form_state['values'][$field];
+
+    $gid = $form_state['values']['gid'];
+    $group = node_load($gid);
+    $role = $values['attribute'];
+    $og_roles = ghel_attribute_selector_get_roles('ghel_course', $gid);
+    // Remove the role from the selected users.
+    $accounts = user_load_multiple($values['incumbents']);
+    foreach ($accounts as $account) {
+      if ($og_roles[$role] != OG_AUTHENTICATED_ROLE) {
+        // This is an actual, just remove the role assignment.
+        og_role_revoke('node', $gid, $account->uid, $role);
+        drupal_set_message(t('%user has been removed as a %role from %group.', array(
+          '%user' => format_username($account),
+          '%group' => $group->title,
+          '%role' => $og_roles[$role]))
+        );
+      }
+      else {
+        // This is a pseudo-role that corresponds to "membership" remove the
+        // group membership and any associated roles.
+        $query = new EntityFieldQuery();
+        $query
+          ->entityCondition('entity_type', 'og_membership')
+          ->propertyCondition('entity_type', 'user', '=')
+          ->propertyCondition('etid', $account->uid, '=')
+          ->propertyCondition('group_type', 'node')
+          ->propertyCondition('gid', $gid);
+        $result = $query->execute();
+        if (!empty($result['og_membership'])) {
+          og_membership_delete_multiple(array_keys($result['og_membership']));
+
+          // Also remove any roles the user may have,
+          $user_roles = og_get_user_roles('node', $gid, $account->uid);
+          if (!empty($user_roles)) {
+            foreach ($user_roles as $rid => $name) {
+              og_role_revoke('node', $gid, $account->uid, $rid);
+            }
+          }
+          drupal_set_message(t('%user has been completely removed from %group.', array('%user' => format_username($account), '%group' => $group->title)));
+        }
+      }
+    }
+  }
+}

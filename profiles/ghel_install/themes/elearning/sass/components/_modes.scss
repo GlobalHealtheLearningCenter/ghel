@@ -1,0 +1,119 @@
+//
+// @file
+// Non-layout View Mode specific styles.
+
+
+// Dated & Dated Featured
+.view-mode-dated_featured,
+.view-mode-dated {
+  @include clearfix;
+  padding-left: 68px;
+  margin-bottom: rhythm(4);
+
+  > .ds-header {
+    width: 68px;
+    margin-left: -68px;
+    float: left;
+  }
+}
+
+.view-mode-dated {
+  .article-title {
+    @include adjust-font-size-to($fs-s);
+    margin-bottom: rhythm(1, $fs-s);
+  }
+}
+
+// Full
+.view-mode-full {
+  @include zen-grid-container;
+
+  > .ds-aside {
+    @include border-radius(4px);
+    clear: left;
+    padding: rhythm(2) $w-gutter-half;
+    background-color: $blue-white;
+    border: 1px solid $blue-lightest;
+  }
+
+  > .ds-footer {
+    clear: both;
+    padding-top: rhythm(2);
+  }
+
+  .body,
+  .field-ghel-objective,
+  .credits-content {
+    a {
+      color: #0A3DAD;
+      text-decoration: underline;
+
+      &:hover {
+        color: #0652F8;
+      }
+    }
+  }
+
+  .field {
+    margin-bottom: rhythm(2);
+  }
+
+  .field-image {
+    // Placeholder for responsive image style
+    // 
+    // img {
+    //   width: 100%;
+    //   height: auto;
+    // }
+  }
+
+  @include breakpoint($mobile, $no-query: '.lt-ie9') {
+  }
+
+  @include breakpoint($tablet, $no-query: '.lt-ie9') {
+    > .ds-aside {
+      clear: none;
+      @include zen-grid-item(3,1, right);
+    }
+  }
+}
+
+// Quotes
+
+.view-mode-quote {
+  > .ds-content {
+    @extend %speech-bubble;
+  }
+
+  > .ds-footer {
+    padding-left: 48px;
+    margin-top: -1 * rhythm(1);
+  }
+
+  .body > p {
+    @include adjust-font-size-to($fs-xl);
+    color: $orange;
+
+    &:before {
+      float: left;
+      content: "\201C";
+      margin-left: -.5em;
+    }
+
+    &:after {
+      content: "\201D";
+      display: inline;
+    }
+  }
+}
+
+// Teaser
+.view-mode-teaser {
+  .field-image {
+    @extend .image-left;
+  }
+
+  .body {
+    clear: none;
+  }
+}

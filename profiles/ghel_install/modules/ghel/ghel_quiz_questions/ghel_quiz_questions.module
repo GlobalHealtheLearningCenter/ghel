@@ -1,0 +1,221 @@
+<?php
+/**
+ * @file
+ * Provides integration with quiz questions and og relative to GHeL build.
+ */
+
+/**
+ * Implements hook_form_alter().
+ */
+function ghel_quiz_questions_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+
+  $types = array_keys(_quiz_get_question_types());
+  if ($form_id == 'quiz_questions_form') {
+    // We need to add a #submit handler post update so we can respond to quiz
+    // questions being added to quizzes.
+    $form['submit']['#submit'][] = 'ghel_quiz_questions_submit';
+  }
+  // quiz question type node form
+  elseif (!empty($form['#node_edit_form']) && in_array($form['#node']->type, $types)) {
+    // Add AJAX handler to field_ghel_course to rebuild form when it changes.
+    if (empty($form['field_ghel_course'])) {
+      // In case new question types are added later throw an error if we are
+      // missing the 'field_ghel_course' field on this question type.
+      drupal_set_message(t('Quiz question type @type missing ghel_course field.', array('@type', $form['#node']->type)), 'error');
+    }
+    else {
+      $courses = array();
+      if (!empty($form['#node']->field_ghel_course)) {
+        $courses = field_get_items('node', $form['#node'], 'field_ghel_course');
+      }
+      if (empty($courses)) {
+        // Default to the quiz node's group (if available)
+        if (!empty($form['quiz_nid']['#value'])) {
+          $quiz = node_load($form['quiz_nid']['#value'], $form['quiz_vid']['#value']);
+          $courses = field_get_items('node', $quiz, 'field_ghel_course');
+          $course = entity_load_single('node', $courses[0]['target_id']);
+        }
+
+        // No course via new question URL. Try og_context.
+        if (empty($course)) {
+          $course = og_context('node');
+          if (!empty($course) && $course->type != 'ghel_course') {
+            unset($course);
+          }
+        }
+
+        // We found a course either via quiz populate or via og_context.
+        if (!empty($course)) {
+          // Make sure the user is a member of the course
+          $membership = og_get_membership('node', $course->nid, 'user', $user->uid);
+          if (!empty($membership) || user_access('administer nodes') || user_access('bypass node access')) {
+            $label = entity_label('node', $course);
+            $form['field_ghel_course'][LANGUAGE_NONE][0]['default']['#default_value'] = array($course->nid);
+            $form['field_ghel_course']['#access'] = FALSE;
+          }
+          else {
+            form_set_error('field_ghel_course', t('You have followed an invalid link to create this question. Please try the link from a course you are a member of.'));
+          }
+        }
+      }
+      else {
+        // Quiz question already belongs to a course. Hide the widget.
+        $form['field_ghel_course']['#access'] = FALSE;
+      }
+    }
+
+    // Block adding quiz questions via text input.
+    $form['add_directly']['new']['#access'] = FALSE;
+
+    // Filter quiz questions to reflect the ghel_course value.
+    $courses = field_get_items('node', $form['#node'], 'field_ghel_course');
+    $quizzes = array();
+    if (!empty($courses)) {
+      foreach ($courses as $item) {
+        $quizzes += ghel_quiz_questions_get_quizzes($item['target_id']);
+      }
+    }
+    else {
+      // Hide the "add to quiz" fieldset since we have no target quizzes.
+      $form['add_directly']['#access'] = FALSE;
+    }
+
+    if (!empty($quizzes) && !empty($form['add_directly']['latest'])) {
+      // filter out already selected quizzes
+      if (!empty($form['add_directly']['already']['#default_value'])) {
+        foreach ($form['add_directly']['already']['#default_value'] as $key) {
+          unset($quizzes[$key]);
+        }
+      }
+
+      if (!empty($quizzes)) {
+        // reset the latest to just our valid quizzes
+        $form['add_directly']['latest']['#options'] = $quizzes;
+        $form['add_directly']['latest']['#title'] = t('Quizzes this question can be added to');
+      }
+      else {
+        // no valid quiz options don't display any
+        $form['add_directly']['latest']['#access'] = FALSE;
+      }
+    }
+    else {
+      // no valid quizzes
+      $form['add_directly']['latest']['#access'] = FALSE;
+    }
+  }
+}
+
+/**
+ * Submit handler for quiz_questions_form.
+ *
+ * This function will handle the necessary building of contextual information to
+ * handle the form building process off to the necessary quiz question GHeL
+ * management functions.
+ *
+ * @see quiz_questions_form_submit()
+ * @see _quiz_update_items()
+ */
+function ghel_quiz_questions_submit($form, &$form_state) {
+  // Unfortunate but this is how quiz_questions_form_submit() handles it.
+  $quiz = node_load(intval(arg(1)));
+
+  ghel_quiz_questions_update_og_associations($quiz);
+}
+
+/**
+ * Given a quiz this function updates the og associations of all quiz questions.
+ *
+ * @param object $quiz
+ *   Quiz object to update the question affiliation for.
+ */
+function ghel_quiz_questions_update_og_associations($quiz) {
+  $questions = quiz_get_questions($quiz->nid, $quiz->vid, TRUE, FALSE, FALSE, FALSE);
+  foreach ($questions as $question) {
+    $node = node_load($question->nid, $question->vid);
+    if ($node->field_ghel_course != $quiz->field_ghel_course) {
+      $node->field_ghel_course = $quiz->field_ghel_course;
+      node_save($node);
+    }
+  }
+}
+
+/**
+ * Given a course ID this function returns the set of valid potential questions.
+ */
+function ghel_quiz_questions_get_quizzes($courseid) {
+  $query = db_select('og_membership', 'ogm');
+  $query->condition('ogm.gid', $courseid)
+    ->condition('ogm.entity_type' , 'node')
+    ->condition('ogm.group_type', 'node')
+    ->leftJoin('node' , 'n', 'n.nid = ogm.etid');
+  $query->condition('n.type', 'quiz')
+    ->fields('n', array('nid', 'vid', 'title'));
+  $result = $query->execute()->fetchAll();
+
+  $quizzes = array();
+  foreach ($result as $row) {
+    // use same key structure as quiz
+    $quizzes[$row->nid . '-' . $row->vid] = $row->title;
+  }
+  return $quizzes;
+}
+
+/**
+ * Implements hook_node_update().
+ */
+function ghel_quiz_questions_node_update($node) {
+  $types = array_keys(_quiz_get_question_types());
+  if (in_array($node->type, $types)) {
+    // quiz architecture is quite odd here
+    $janky = array('already', 'latest', 'new');
+    $quizzes = array();
+    foreach($janky as $setting) {
+      if (isset($node->add_directly[$setting]) && !empty($node->add_directly[$setting])) {
+        $quizzes += array_filter($node->add_directly[$setting]);
+      }
+    }
+  }
+  elseif ($node->type == 'quiz') {
+    // quiz node type.
+    ghel_quiz_questions_update_og_associations($node);
+  }
+}
+
+/**
+ * Implements hook_node_presave().
+ *
+ * Ensures that und fields always match en field entries.
+ */
+function ghel_quiz_questions_field_attach_presave($entity_type, $entity) {
+/*
+  if ($entity_type != 'node') {
+    return;
+  }
+  $types = array('ghel_course_page', 'ghel_quiz', 'truefalse', 'multichoice', 'matching');
+  if (in_array($entity->type, $types)) {
+    $translatable_fields = ghel_quiz_get_translatable_fields();
+    foreach ($translatable_fields as $field) {
+      $und = $entity->{$field}['und'];
+      $en = $entity->{$field}['en'];
+      // For some reason we need 'und' values for text fields but not others -- that causes errors
+      if (((!isset($und) && isset($en)) || $und != $en) && isset($entity->{$field}['und'][0]['value'])) {
+        $entity->{$field}['und'] = $entity{$field}['en'];
+      }
+    }
+  }
+*/
+}
+
+
+/**
+ * Gets an array of all translatable fields.
+ */
+function ghel_quiz_get_translatable_fields() {
+  $fields = array();
+  $result = db_query("select field_name from field_config where translatable = 1");
+  foreach ($result as $record) {
+    $fields[] = $record->field_name;
+  }
+  return $fields;
+}

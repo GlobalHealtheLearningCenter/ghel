@@ -1,0 +1,187 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Base feature.
+ */
+
+include_once 'ghel_base.features.inc';
+
+/**
+ * Implements hook_menu_block_blocks().
+ */
+function ghel_base_menu_block_blocks() {
+  // The array key is the block delta used by menu block.
+  return array(
+    'ghel_base_menu_blocks-1' => array(
+      'menu_name'   => 'main-menu',
+      'parent_mlid' => 0,
+      'title_link'  => 0,
+      'admin_title' => 'Menu Block: Main Menu',
+      'level'       => 1,
+      'follow'      => 0,
+      'depth'       => 1,
+      'expanded'    => 0,
+      'sort'        => 0,
+    ),
+    'ghel_base_menu_blocks-2' => array(
+      'menu_name'   => 'user-menu',
+      'parent_mlid' => 0,
+      'title_link'  => 0,
+      'admin_title' => 'Menu Block: User Menu',
+      'level'       => 1,
+      'follow'      => 0,
+      'depth'       => 0,
+      'expanded'    => 0,
+      'sort'        => 0,
+    ),
+    'ghel_base_menu_blocks-4' => array(
+      'menu_name'   => 'menu-footer-menu',
+      'parent_mlid' => 0,
+      'title_link'  => 0,
+      'admin_title' => 'Menu Block: Footer Menu',
+      'level'       => 1,
+      'follow'      => 0,
+      'depth'       => 0,
+      'expanded'    => 0,
+      'sort'        => 0,
+    ),
+  );
+}
+
+/**
+ * Helper function for features nid values.
+ *
+ * @param string $uuid
+ *   The uuid to return the nid for.
+ *
+ * @return mixed
+ *   Either a nid corresponding to uuid or an empty string.
+ */
+function _ghel_base_get_nid_by_uuid($uuid) {
+  $nids = entity_get_id_by_uuid('node', array($uuid));
+  if (!empty($nids[$uuid])) {
+    return $nids[$uuid];
+  }
+
+  return '';
+}
+
+/**
+ * Implements hook_menu_alter().
+ */
+function ghel_base_menu_alter(&$items) {
+  // Remove /node page.
+  unset($items['node']);
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function ghel_base_form_alter(&$form, &$form_state, $form_id) {
+  if (strpos($form_id, 'comment_') === 0) {
+    // Hide a few elements form the comment form.
+    $form['author']['#access'] = FALSE;
+    $form['comment_body']['#after_build'][] = 'ghel_base_remove_body_text_filter';
+  }
+
+  // Hide published options default published: Yes, promote, sticky: no.
+  switch ($form_id) {
+    case 'ghel_course_node_form':
+    case 'ghel_course_page_node_form':
+    case 'ghel_course_section_node_form':
+    case 'matching_node_form':
+    case 'multichoice_node_form':
+    case 'quiz_node_form':
+    case 'quiz_directions_node_form':
+    case 'truefalse_node_form':
+      $form['options']['status']['#default_value'] = 1;
+      $form['options']['status']['#access'] = FALSE;
+      $form['options']['promote']['#default_value'] = 0;
+      $form['options']['promote']['#access'] = FALSE;
+      $form['options']['sticky']['#default_value'] = 0;
+      $form['options']['sticky']['#access'] = FALSE;
+      $form['options']['#access'] = FALSE;
+      break;
+  }
+}
+
+/**
+ * After build function for comment body.
+ */
+function ghel_base_remove_body_text_filter(&$form) {
+  foreach (element_children($form) as $lang) {
+    foreach (element_children($form[$lang]) as $index) {
+      foreach (element_children($form[$lang][$index]) as $widget) {
+        if ($widget == 'format') {
+          // Hide all text formatting options.
+          $form[$lang][$index][$widget]['guidelines']['#access'] = FALSE;
+          $form[$lang][$index][$widget]['format']['#attributes']['style'] = 'display:none';
+          $form[$lang][$index][$widget]['format']['#title'] = '';
+          $form[$lang][$index][$widget]['help']['#access'] = FALSE;
+          $form[$lang][$index][$widget]['#theme_wrappers'] = NULL;
+
+        }
+      }
+    }
+  }
+
+  return $form;
+}
+
+/**
+ * Delete quiz results.
+ *
+ * Given quiz node ids. Delete all corresponding quiz results.
+ *
+ * @var array $nids
+ *   An array of quiz node ids to delete results for.
+ */
+function ghel_base_delete_quiz_results($nids) {
+  $query = db_select('quiz_node_results', 'r');
+  $rids = $query->condition('nid', $nids)
+    ->addField('r', 'rid')
+    ->execute()
+    ->fetchCol();
+  quiz_delete_results($rids);
+}
+
+/**
+ * Get a result set of improperly configured course content comments.
+ *
+ * Given a workflow state and a comment setting. Return a result set of node ids
+ * that *do not* match that setting.
+ *
+ * @param int $workflow_state
+ *   One of: GHEL_WORKFLOW_STATE_CREATION, GHEL_WORKFLOW_STATE_UNDER_REVIEW,
+ *     GHEL_WORKFLOW_STATE_FEEDBACK, GHEL_WORKFLOW_STATE_PUBLISHED,
+ *     GHEL_WORKFLOW_STATE_ARCHIVED
+ * @param int $comment_state
+ *   One of: COMMENT_NODE_OPEN, COMMENT_NODE_HIDDEN, COMMENT_NODE_CLOSED
+ *
+ */
+function ghel_base_non_conforming_comments($workflow_state, $comment_state) {
+  $query = "SELECT cc.nid FROM {node} cc
+      LEFT JOIN {og_membership} og ON cc.nid = og.etid
+      LEFT JOIN {node} c ON c.nid = og.gid
+      LEFT JOIN {workflow_node} w ON w.nid = c.nid
+    WHERE w.sid = :workflow_state
+      AND cc.comment != :comment_state
+      AND og.entity_type = :node
+      AND og.group_type = :node
+      AND og.field_name = :type_course
+      AND cc.type IN (:type_page, :type_section, :type_quiz)
+    ORDER BY cc.nid";
+
+  $args = array(
+    ':workflow_state' => $workflow_state,
+    ':comment_state' => $comment_state,
+    ':node' => 'node',
+    ':type_course' => 'field_ghel_course',
+    ':type_page' => 'ghel_course_page',
+    ':type_section' => 'ghel_course_section',
+    ':type_quiz' => 'quiz',
+  );
+
+  $result = db_query($query, $args);
+  return $result;
+}

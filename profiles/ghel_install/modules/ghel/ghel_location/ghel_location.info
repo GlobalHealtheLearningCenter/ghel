@@ -1,0 +1,16 @@
+name = GHeL Location
+description = Provides two addition fields for user profile:  Region & Subregion, which are filled automatically based on location selection.
+core = 7.x
+package = GHeL
+version = 7.x-1.0
+project = ghel_location
+dependencies[] = features
+dependencies[] = list
+dependencies[] = options
+features[features_api][] = api:2
+features[field_base][] = field_ghel_region
+features[field_base][] = field_ghel_sub_region
+features[field_base][] = field_ghel_user_location
+features[field_instance][] = user-user-field_ghel_region
+features[field_instance][] = user-user-field_ghel_sub_region
+features[field_instance][] = user-user-field_ghel_user_location

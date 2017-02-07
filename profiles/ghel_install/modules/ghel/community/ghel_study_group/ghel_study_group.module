@@ -1,0 +1,61 @@
+<?php
+/**
+ * @file
+ * Code for the Study Group feature.
+ */
+
+include_once 'ghel_study_group.features.inc';
+
+/**
+ * Implements hook_bock_info().
+ */
+function ghel_study_group_block_info() {
+  $blocks['add-content'] = array(
+    'info' => t('Add Study Group Content'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function ghel_study_group_block_view($delta = '') {
+  $block = array();
+  switch($delta) {
+    case 'add-content':
+      $og = og_context();
+      if (!empty($og)) {
+        $group = node_load($og['gid']);
+        if ($group->type == 'ghel_grp_study') {
+          $block['subject'] = t('Add to "%group"', array('%group' => $group->title));
+          $block['content'] = array(
+            '#theme' => 'links',
+            '#links' => array(
+              array(
+                'title' => t('Discussion'),
+                'href' => 'node/add/ghel-discussion',
+                'query' => array(
+                  'field_ghel_post_in' => $group->nid,
+                ),
+              ),
+              array(
+                'title' => t('Resource'),
+                'href' => 'node/add/ghel-resource',
+                'query' => array(
+                  'field_ghel_er_partof' => $group->nid,
+                ),
+              ),
+            ),
+            'attributes' => array(
+              'class' => array('ghel-add-content', 'ghel-study-group')
+            ),
+          );
+        }
+      }
+      break;
+  }
+
+  return $block;
+}

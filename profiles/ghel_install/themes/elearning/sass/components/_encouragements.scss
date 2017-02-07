@@ -1,0 +1,12 @@
+//
+// @file
+// Encouragement styles.
+
+.site-stat {
+  color: $blue-dark;
+  font-weight: bold;
+
+  > em {
+    color: $orange-dark;
+  }
+}

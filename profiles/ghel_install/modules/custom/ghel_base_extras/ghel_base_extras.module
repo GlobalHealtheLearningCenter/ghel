@@ -1,0 +1,55 @@
+<?php
+
+/**
+ * Implements hook_node_insert().
+ */
+function ghel_base_extras_node_insert($node) {
+
+  if (isset($node->uuid) && $node->uuid != '') {
+
+    $langcode = entity_language('node', $node);
+
+    $path = array(
+      'source' => 'node/' . $node->nid,
+      'language' => isset($langcode) ? $langcode : LANGUAGE_NONE,
+    );
+
+    $aliases = array(
+      '8e2aaa08-bcd2-7f24-7d2d-0049b5c64625' => 'home',
+      'a343e8f9-3edd-4584-61e6-613de9ea4554' => 'courses',
+      'dd8509ce-8bee-52c4-f99e-2271eeac65ad' => 'announcements',
+      '5754803a-4fcb-0fe4-09ec-ff1ac89b25ea' => 'about',
+      '22e2c592-888b-92e4-1141-df2cb9222110' => 'about/contact',
+      '2921be2f-31fa-8904-4911-57626a6f0323' => 'about/how-to-use-courses',
+      '29054226-a1c9-a8f4-552c-6f16fb21e2c4' => 'about/additional-training-opportunities',
+      '46a97e8f-ea2e-5ba4-b156-82ec58350962' => 'about/partners',
+      'cb309de1-a301-99e4-31eb-53eb1d3f45d5' => 'about/faqs',
+      'a1efef5f-181e-8a44-4157-773572f37ec6' => 'privacy',
+      '36c2a6fb-183f-79c4-6179-6b8e6c102010' => 'certificate-programs',
+      '2f4de39e-82d9-d4e4-6de4-d02ef08e2a5e' => 'dashboard',
+    );
+
+    foreach ($aliases as $uuid => $alias) {
+
+      if ($node->uuid == $uuid) {
+        $path['alias'] = $alias;
+        path_save($path);
+        break;
+      } // if
+
+    } // foreach
+
+  } // if
+
+} // ghel_base_extras_node_insert
+
+/**
+ * Implements hook_menu_alter().
+ */
+function ghel_base_extras_menu_alter(&$items) {
+
+  $items['user/register']['type'] = MENU_NORMAL_ITEM;
+  $items['user/login']['type'] = MENU_NORMAL_ITEM;
+  $items['user/%user/view']['title'] = t('Profile');
+
+} // ghel_base_extras_menu_alter

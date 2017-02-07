@@ -1,0 +1,14 @@
+name = GHeL Achievements
+description = GHeL custom achievements
+core = 7.x
+package = GHeL Custom Code
+php = 5.2.4
+version = 7.x-1.0
+project = ghel_actions
+dependencies[] = achievements
+dependencies[] = ghel_course
+dependencies[] = ghel_program
+dependencies[] = views
+
+files[] = ghel_achievements_views_handler.inc
+files[] = ghel_achievements_views_handler_filter.inc

@@ -1,0 +1,342 @@
+<?php
+/**
+ * @file
+ * @todo adjust access arguments to proper og access callback
+ * @todo adjust paths to appropriate places (hook_menu_alter on og_ui?)
+ */
+
+/**
+ * Implements of hook_menu().
+ */
+function attribute_selector_og_menu() {
+  $items['group-alternate/%/%/admin/people'] = array(
+    'title' => 'Add Users',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('attribute_selector_og_people_form', 1, 2),
+    'access arguments' => array('administer users'),
+  );
+  $items['group-alternate/%/%/admin/roles'] = array(
+    'title' => 'Manage User Roles',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('attribute_selector_og_roles_form', 1, 2),
+    'access arguments' => array('administer users'),
+  );
+  return $items;
+}
+
+/**
+ * Form definition for adding users to an organic group.
+ */
+function attribute_selector_og_people_form($form, &$form_state, $group_type, $gid) {
+  $group = entity_load_single($group_type, $gid);
+  $label = entity_label($group_type, $group);
+
+  $form['group_type'] = array('#type' => 'value', '#value' => $group_type);
+  $form['gid'] = array('#type' => 'value', '#value' => $gid);
+
+  $form['og_members'] = array(
+    '#type' => 'attribute_selector',
+    '#attribute' => og_group_content_states(),
+    '#callbacks' => array(
+      '#candidates' => 'attribute_selector_non_og_people',
+      '#incumbents' => 'attribute_selector_og_members_by_state',
+      '#add' => 'attribute_selector_og_add_user',
+      '#remove' => 'attribute_selector_og_remove_user',
+    ),
+    '#title' => t('Add users to %label', array('%label' => $label)),
+    '#sub-title' => array(
+      '#candidates' => 'Users not associated with group',
+      '#attribute' => 'Membership State',
+      '#incumbents' => '@attribute Users',
+      '#add' => 'Add "@attribute" users ⇒',
+      '#remove' => '⇐ Remove "@attribute" users',
+    ),
+  );
+
+  // @todo rework so og_ui is not necessary
+  $field_names = og_get_group_audience_fields('user', 'user', FALSE);
+  $field_name = !empty($form_state['values']['field_name']) ? $form_state['values']['field_name'] : key($field_names);
+
+  $form['og_user']['field_name'] = array(
+    '#type' => 'select',
+    '#title' => t('Field name'),
+    '#options' => $field_names,
+    '#default_value' => $field_name,
+    '#description' => t('Select the field name, the group membership should be registered in.'),
+    '#ajax' => array(
+      'callback' => 'og_ui_admin_add_user_ajax_callback',
+      'wrapper' => 'og-ui-field-name',
+    ),
+  );
+
+  // Add group membership form.
+  $values = array();
+
+  // Add group membership form. We still don't have the user or state.
+  $og_membership = og_membership_create($group_type, $gid, 'user', 0, $field_name, $values);
+  $form_state['og_membership'] = $og_membership;
+
+  $form['membership_fields'] = array(
+    '#prefix' => '<div id="og-ui-field-name">',
+    '#suffix' => '</div>',
+    '#tree' => TRUE,
+    '#parents' => array('membership_fields'),
+  );
+  field_attach_form('og_membership', $og_membership, $form['membership_fields'], $form_state);
+
+  return $form;
+}
+
+/**
+ * Form callback to define list of users that can be added to group.
+ */
+function attribute_selector_non_og_people($state, $element, &$form_state) {
+  $candidates = db_select('users', 'u')
+    ->fields('u', array('uid', 'name'))
+    ->condition('status', 1)
+    ->condition('u.uid', array(0), 'NOT IN')
+    ->orderBy('u.name')
+    ->execute()
+    ->fetchAllKeyed();
+
+  // Need to retrieve members for all states and then prune this from the list
+  // of available users.
+  $states = og_group_content_states();
+  $incumbents = array();
+  foreach ($states as $curstate => $value) {
+    $incumbents += attribute_selector_og_members_by_state($curstate, $element, $form_state);
+  }
+
+  return array_diff_key($candidates, $incumbents);
+}
+
+/**
+ * Form callback returns a list of users associated with group in a given state.
+ */
+function attribute_selector_og_members_by_state($state, $element, &$form_state) {
+  $group_type = $form_state['values']['group_type'];
+  $gid = $form_state['values']['gid'];
+  $group = entity_load_single($group_type, $gid);
+  $name = 'og_membership__' . $state;
+  $members = og_get_group_members_properties($group, array(), $name, $group_type);
+
+  if (!empty($members)) {
+    $users = db_select('users', 'u')
+      ->fields('u', array('uid', 'name'))
+      ->condition('status', 1)
+      ->condition('uid', $members)
+      ->orderBy('u.name')
+      ->execute()
+      ->fetchAllKeyed();
+    return $users;
+  }
+  else {
+    return array();
+  }
+}
+
+/**
+ * Form callback for adding users in a given state to the selected group.
+ */
+function attribute_selector_og_add_user($form, &$form_state) {
+  $button = $form_state['triggering_element'];
+  if (!empty($button['#elementname'])) {
+    $field = $button['#elementname'];
+    $values = $form_state['values'][$field];
+
+    $group_type = $form_state['values']['group_type'];
+    $gid = $form_state['values']['gid'];
+    $group = entity_load_single($group_type, $gid);
+    $label = entity_label($group_type, $group);
+    $state = $values['attribute'];
+
+    // Add the users with the given state to the group.
+    $accounts = user_load_multiple($values['candidates']);
+    foreach ($accounts as $account) {
+      // Ungroup user, in case they were already registered.
+      $og_membership = $form_state['og_membership'];
+
+      // Make sure this is a new user entry.
+      unset($og_membership->id);
+      $og_membership->is_new = TRUE;
+
+      // Set the user and state.
+      field_attach_submit('og_membership', $og_membership, $form['membership_fields'], $form_state);
+      og_ungroup($group_type, $gid, 'user', $account);
+
+      $og_membership->etid = $account->uid;
+      $og_membership->state = $state;
+
+      $og_membership->save();
+      drupal_set_message(t('%user has been added to %group.', array('%user' => format_username($account), '%group' => $label)));
+    }
+  }
+
+}
+
+/**
+ * Form callback to remove users from a group.
+ */
+function attribute_selector_og_remove_user($form, &$form_state) {
+  $button = $form_state['triggering_element'];
+  if (!empty($button['#elementname'])) {
+    $field = $button['#elementname'];
+    $values = $form_state['values'][$field];
+
+    $group_type = $form_state['values']['group_type'];
+    $gid = $form_state['values']['gid'];
+    $group = entity_load_single($group_type, $gid);
+    $label = entity_label($group_type, $group);
+    $state = $values['attribute'];
+
+    // Remove the users from the group.
+    $accounts = user_load_multiple($values['incumbents']);
+    foreach ($accounts as $account) {
+      og_ungroup($group_type, $gid, 'user', $account);
+      drupal_set_message(t('%user has been removed from %group.', array('%user' => format_username($account), '%group' => $label)));
+    }
+  }
+}
+
+/**
+ * Form definition for applying og roles.
+ */
+function attribute_selector_og_roles_form($form, &$form_state, $group_type, $gid) {
+  $form['group_type'] = array('#type' => 'value', '#value' => $group_type);
+  $form['gid'] = array('#type' => 'value', '#value' => $gid);
+
+  $group = entity_load_single($group_type, $gid);
+  $label = entity_label($group_type, $group);
+  list(,, $bundle) = entity_extract_ids($group_type, $group);
+
+  $og_roles = og_roles($group_type, $bundle, $gid, FALSE, FALSE);
+
+  $form['og_members'] = array(
+    '#type' => 'attribute_selector',
+    '#attribute' => $og_roles,
+    '#callbacks' => array(
+      '#candidates' => 'attribute_selector_og_members_prefix_state',
+      '#incumbents' => 'attribute_selector_og_members_by_role',
+      '#add' => 'attribute_selector_og_add_role',
+      '#remove' => 'attribute_selector_og_remove_role',
+    ),
+    '#title' => t('Add roles to users in %label', array('%label' => $label)),
+    '#sub-title' => array(
+      '#candidates' => 'Users without @attribute',
+      '#attribute' => 'Membership State',
+      '#incumbents' => '@attribute Users',
+      '#add' => 'Add "@attribute" role ⇒',
+      '#remove' => '⇐ Remove "@attribute" role',
+    ),
+  );
+
+  return $form;
+
+}
+
+/**
+ * Form callback to define list of users that are in a group keyed by state.
+ */
+function attribute_selector_og_members_keyed_by_state($attribute, $element, &$form_state) {
+  $users = array();
+
+  $states = og_group_content_states();
+
+  foreach ($states as $curstate => $value) {
+    $users[$curstate] = attribute_selector_og_members_by_state($curstate, $element, $form_state);
+  }
+
+  return $users;
+}
+
+/**
+ * Form callback to list group members with their state prefixed.
+ *
+ * Filters by the currently selected attribute which is assumed to be
+ * a role.
+ */
+function attribute_selector_og_members_prefix_state($attribute, $element, &$form_state) {
+  $states = og_group_content_states();
+
+  $stateusers = attribute_selector_og_members_keyed_by_state($attribute, $element, $form_state);
+
+  $candidates = array();
+  foreach ($stateusers as $state => $users) {
+    if ($state != $attribute) {
+      foreach ($users as $uid => $name) {
+        $candidates[$uid] = t('@state: @user', array('@state' => $states[$state], '@user' => $name));
+      }
+    }
+  }
+
+  asort($candidates);
+
+  $incumbents = attribute_selector_og_members_by_role($attribute, $element, $form_state);
+  return array_diff_key($candidates, $incumbents);
+}
+
+/**
+ *  Return users with the given role.
+ */
+function attribute_selector_og_members_by_role($role, $element, &$form_state) {
+  $group_type = $form_state['values']['group_type'];
+  $gid = $form_state['values']['gid'];
+
+  $query = db_select('og_users_roles', 'ogu');
+  $query->join('users', 'u', 'ogu.uid = u.uid');
+  $users = $query->fields('u', array('uid', 'name'))
+    ->condition('u.status', 1)
+    ->condition('ogu.rid', $role)
+    ->condition('ogu.group_type', $group_type)
+    ->condition('ogu.gid', $gid)
+    ->fields('u', array('uid', 'name'))
+    ->orderBy('u.name')
+    ->execute()
+    ->fetchAllKeyed();
+  return $users;
+}
+
+/**
+ * Form submit callback to add users to the selected role.
+ */
+function attribute_selector_og_add_role($form, &$form_state) {
+  $button = $form_state['triggering_element'];
+  if (!empty($button['#elementname'])) {
+    $field = $button['#elementname'];
+    $values = $form_state['values'][$field];
+
+    $group_type = $form_state['values']['group_type'];
+    $gid = $form_state['values']['gid'];
+    $group = entity_load_single($group_type, $gid);
+    $label = entity_label($group_type, $group);
+    $role = $values['attribute'];
+
+    // Add the roles to the selected users.
+    foreach ($values['candidates'] as $uid) {
+      og_role_grant($group_type, $gid, $uid, $role);
+    }
+  }
+}
+
+
+/**
+ * Form submit callback to remove users from the selected role.
+ */
+function attribute_selector_og_remove_role($form, &$form_state) {
+  $button = $form_state['triggering_element'];
+  if (!empty($button['#elementname'])) {
+    $field = $button['#elementname'];
+    $values = $form_state['values'][$field];
+
+    $group_type = $form_state['values']['group_type'];
+    $gid = $form_state['values']['gid'];
+    $group = entity_load_single($group_type, $gid);
+    $label = entity_label($group_type, $group);
+    $role = $values['attribute'];
+
+    // Remove the role from the selected users.
+    foreach ($values['incumbents'] as $uid) {
+      og_role_revoke($group_type, $gid, $uid, $role);
+    }
+  }
+}

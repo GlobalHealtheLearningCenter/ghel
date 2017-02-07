@@ -1,0 +1,14 @@
+name = MultiLink
+description = "MultiLink Core"
+package = "Multilanguage"
+
+; --- Drupal 7.x ---
+core = 7.x
+dependencies[] = translation
+
+; Information added by Drupal.org packaging script on 2014-05-23
+version = "7.x-2.10"
+core = "7.x"
+project = "multilink"
+datestamp = "1400885028"
+

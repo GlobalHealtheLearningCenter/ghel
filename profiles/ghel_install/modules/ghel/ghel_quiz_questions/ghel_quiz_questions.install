@@ -1,0 +1,18 @@
+<?php
+/**
+ * @file
+ * Necessary to ensure our module runs after quiz.
+ */
+
+function ghel_quiz_questions_install() {
+  $weight = db_select('system', 's')
+    ->fields('s', array('weight'))
+    ->condition('name', 'quiz', '=')
+    ->execute()
+    ->fetchField();
+
+  db_update('system')
+    ->fields(array('weight' => $weight +1))
+    ->condition('name', 'ghel_quiz_questions', '=')
+    ->execute();
+}

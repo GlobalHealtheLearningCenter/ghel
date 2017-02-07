@@ -1,0 +1,3 @@
+name = Attribute selector widget
+description = Provides a framework for three column selection of applying attributes to groups of candidates or removing them from groups of incumbents.
+core = 7.x

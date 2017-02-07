@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Contact feature.
+ */
+
+include_once 'ghel_contact.features.inc';

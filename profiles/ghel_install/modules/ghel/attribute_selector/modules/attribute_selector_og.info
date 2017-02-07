@@ -1,0 +1,5 @@
+name = Attribute selector OG Integration
+description = Provides an alternate for views bulk operations og operations.
+core = 7.x
+dependencies[] = attribute_selector
+dependencies[] = og_ui

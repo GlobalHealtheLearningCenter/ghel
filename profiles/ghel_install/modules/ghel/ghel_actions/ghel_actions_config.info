@@ -1,0 +1,8 @@
+name = GHeL Actions, Worfklow, OG Config
+description = GHeL Actions, Workflow, and OG Permissions configuration.
+core = 7.x
+package = GHeL Custom Code
+php = 5.2.4
+version = 7.x-1.0-dev
+project = ghel_actions
+dependencies[] = ghel_actions

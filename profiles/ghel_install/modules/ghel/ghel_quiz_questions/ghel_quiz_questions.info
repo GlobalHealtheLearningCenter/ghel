@@ -1,0 +1,9 @@
+name = GHeL Quiz Question Integration
+description = Provides integration with GHeL infrastructure and Quiz Questions.
+core = 7.x
+package = GHeL
+version = 7.x-1.0-dev
+project = ghel_quiz_questions
+dependencies[] = ghel_quiz_configuration
+dependencies[] = og_context
+dependencies[] = quiz

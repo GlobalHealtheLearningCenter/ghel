@@ -1,0 +1,7 @@
+//
+// @file
+// Credits styles.
+
+.credits-content {
+  @include adjust-font-size-to($fs-s);
+}

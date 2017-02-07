@@ -1,0 +1,30 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL About feature.
+ */
+
+include_once 'ghel_about.features.inc';
+
+/**
+ * Implements hook_menu_block_blocks().
+ */
+function ghel_about_menu_block_blocks() {
+  // The array key is the block delta used by menu block.
+  module_load_include('inc', 'uuid', 'uuid.features.menu');
+  $menu  = uuid_menu_link_load('main-menu:node/5754803a-4fcb-0fe4-09ec-ff1ac89b25ea');
+
+  return array(
+    'ghel_about_menu_blocks-5' => array(
+      'menu_name'   => 'main-menu',
+      'parent_mlid' => $menu['mlid'],
+      'title_link'  => 0,
+      'admin_title' => 'Menu Block: About',
+      'level'       => 1,
+      'follow'      => 0,
+      'depth'       => 0,
+      'expanded'    => 0,
+      'sort'        => 0,
+    ),
+  );
+}

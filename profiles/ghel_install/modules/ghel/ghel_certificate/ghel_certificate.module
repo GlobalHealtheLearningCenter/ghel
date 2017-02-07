@@ -1,0 +1,937 @@
+<?php
+/**
+ * @file
+ * Certificate rendering for GHeL programs.
+ *
+ * @todo potential integration with http://www.mpdf1.com/mpdf/index.php for
+ * predicatbly pdf output
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function ghel_certificate_permission() {
+  return array(
+    'view own certificates' => array(
+      'title' => t('View own certificates'),
+      'description' => t('View certificates the user has earned.'),
+    ),
+    'view others certificates' => array(
+      'title' => t("View other's certificates"),
+      'description' => t('View certificates other users have earned. Useful if one user may need to print certificates on behalf of other users'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function ghel_certificate_menu() {
+  $items['certificate/%user'] = array(
+    'page callback' => 'ghel_certificate_overview',
+    'page arguments' => array(1),
+    'access callback' => 'ghel_certificate_access_overview',
+    'access arguments' => array(1),
+    'file' => 'ghel_certificate.pages.inc',
+  );
+  $items['certificate/%user/%ghel_certificate'] = array(
+    'page callback' => 'ghel_certificate_display',
+    'page arguments' => array(2),
+    'access callback' => 'ghel_certificate_access_certificate',
+    'access arguments' => array(2),
+    'delivery callback' => 'ghel_certificate_deliver',
+    'file' => 'ghel_certificate.pages.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_node_update($node)
+ */
+function ghel_certificate_node_update($node) {
+  if ($node->type == 'ghel_program') {
+    $achievement_id = 'g-p-completion-' . $node->nid . '-0';
+
+    $new = ghel_certificate_get_useful_data_structure(field_get_items('node', $node, 'field_ghel_courses'));
+    $old = ghel_certificate_get_useful_data_structure(field_get_items('node', $node->original, 'field_ghel_courses'));
+
+    $added_courses = array_diff($new, $old);
+    $removed_courses = array_diff($old, $new);
+
+    $program_achievers = ghel_certificate_get_earners($node);
+
+    if (!empty($added_courses)) {
+      $course_achievers = ghel_certificate_get_set_earners($added_courses);
+
+      // Revoke program achievement for all other users.
+      $to_revoke = array_diff($program_achievers, $course_achievers);
+
+      if (!empty($to_revoke)) {
+        foreach ($to_revoke as $uid) {
+          achievements_locked($achievement_id, $uid);
+        }
+      }
+    }
+
+    if (!empty($removed_courses)) {
+      // Grant the program certificate to any users who have completed all the
+      // other courses, but do not already have the certificate.
+      $course_achievers = ghel_certificate_get_set_earners($new);
+      $to_grant = array_diff($course_achievers, $program_achievers);
+
+      if (!empty($to_grant)) {
+        foreach ($to_grant as $uid) {
+          achievements_unlocked($achievement_id, $uid);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Given an array of course nids return users who have completed all courses.
+ *
+ * @param array $course_nids
+ *   Array of course node ids to check completion for.
+ *
+ * @return  array
+ *   Array of users who have completed all courses.
+ */
+function ghel_certificate_get_set_earners($course_nids) {
+  $earners = array();
+
+  if (!empty($course_nids)) {
+    $first = TRUE;
+    foreach ($course_nids as $nid) {
+      $course = node_load($nid);
+      if ($first) {
+        $earners = ghel_certificate_get_earners($course);
+        $first = FALSE;
+      }
+      else {
+
+        $course_achievers = ghel_certificate_get_earners($course);
+        $earners = array_intersect($earners, $course_achievers);
+      }
+
+      // Short-circuit as soon as we have no earners.
+      if (empty($earners)) {
+
+        break;
+      }
+    }
+  }
+
+  return $earners;
+}
+
+/**
+ * Given a program or course node returns the users who have earned the
+ * "current" certificate for the given program or course.
+ *
+ * @param  $node
+ *   A program or course node
+ *
+ * @return  array
+ *   An array of uids of users who have earned the completion certificate
+ *   for the given node.
+ */
+function ghel_certificate_get_earners($node) {
+  $earners = array();
+
+  switch($node->type) {
+    case 'ghel_course':
+      $revision = ghel_course_get_revision($node);
+      $achievement_id = 'g-c-completion-' . $node->nid . '-' . $revision;
+    break;
+    case 'ghel_program':
+      $achievement_id = 'g-p-completion-' . $node->nid . '-0';
+    break;
+  }
+
+  if (!empty($achievement_id)) {
+    $query = db_select('achievement_unlocks', 'u');
+    $earners = $query->fields('u', array('uid'))
+      ->condition('achievement_id', $achievement_id)
+      ->execute()
+      ->fetchCol();
+  }
+
+  return $earners;
+}
+
+/**
+ * Builds a useful data structure from an entity reference field.
+ *
+ * @param  mixed $items
+ *  Value returned from field_get_items() for an entityreference field.
+ *
+ * @todo more research to see if API method for this.
+ *
+ * @return array
+ *   Just the values without extra junk structure.
+ */
+function ghel_certificate_get_useful_data_structure($items) {
+  $values = array();
+  if (!empty($items)) {
+    foreach ($items as $item) {
+      $values[] = $item['target_id'];
+    }
+  }
+
+  return $values;
+}
+
+/**
+ * Show an overview of a users certificates.
+ *
+ * @param object $account
+ *   A fully loaded user object.
+ */
+function ghel_certificate_overview($account) {
+  $certificates = ghel_certificate_load_certificates($account);
+  return theme('ghel_certificate_overview', array('certificates' => $certificates));
+}
+
+/**
+ * Render an individual certificate.
+ *
+ * @param array $certificate
+ *   A certificate array as returned by ghel_certficate_load().
+ *
+ * @see ghel_certificate_load()
+ */
+function ghel_certificate_display($certificate) {
+  drupal_add_css(drupal_get_path('module', 'ghel_certificate') . '/ghel_certificate.css');
+  switch ($certificate['type']) {
+    case 'g-c-completion':
+      return theme('ghel_certificate_course', $certificate);
+      break;
+
+    case 'g-p-completion':
+      return theme('ghel_certificate_program', $certificate);
+      break;
+  }
+}
+
+/**
+ * Determine if a given user account can access a certificate.
+ *
+ * @param array $certificate
+ *   A certificate as returned by ghel_certificate_load().
+ * @param object $account
+ *   A fully loaded user object.
+ *
+ * @return bool
+ *   TRUE if the user can access the given certificate, FALSE otherwise
+ */
+function ghel_certificate_access_certificate($certificate, $account = NULL) {
+  global $user;
+  if (empty($account)) {
+    $account = $user;
+  }
+
+  $cert_owner = user_load($certificate['uid']);
+
+  // ghel_certificate_is_current checks for published status:
+  // allow course authors and admins to bypass this during authoring
+  if (!empty($certificate) && ghel_certificate_access_overview($cert_owner, $account) && (user_access('create ghel_course content', $account) || ghel_certificate_is_current($certificate['cert_id']))) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Determine if the given account can access uid's certificates.
+ *
+ * @param object $cert_user
+ *   The user object representing the user's certificates we want to view.
+ * @param object $account
+ *   The user account wanting to view the certificate.
+ *
+ * @return bool
+ *   TRUE if the user represented by account can access uid's certificates FALSE
+ *   otherwise.
+ */
+function ghel_certificate_access_overview($cert_user, $account = NULL) {
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  if ($cert_user->uid == $account->uid && user_access('view own certificates') || user_access('view others certificates')) {
+    return TRUE;
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function ghel_certificate_theme($existing, $type, $theme, $path) {
+  return array(
+    'ghel_certificate_course' => array(
+      'variables' => array(
+        'title' => t('Course Title'),
+        'first_name' => t('Example'),
+        'last_name' => t('User'),
+        'pass_date' => date('F j, Y'),
+        'type' => 'course',
+        'revision' => 0,
+      ),
+      'template' => 'ghel_certificate_course',
+      'file' => 'ghel_certificate.pages.inc',
+    ),
+    'ghel_certificate_program' => array(
+      'variables' => array(
+        'title' => t('Course Title'),
+        'first_name' => t('Example'),
+        'last_name' => t('User'),
+        'pass_date' => date('F j, Y'),
+        'type' => 'program',
+        'courses' => array(),
+      ),
+      'template' => 'ghel_certificate_program',
+      'file' => 'ghel_certificate.pages.inc',
+    ),
+    'ghel_certificate_overview' => array(
+      'variables' => array(
+        'certificates' => array(),
+      ),
+      'template' => 'ghel_certificate_overview',
+      'file' => 'ghel_certificate.pages.inc',
+    ),
+    'ghel_certificate_html' => array(
+      'variables' => array(
+        'language' => NULL,
+        'head_title' => '',
+        'head' => '',
+        'styles' => '',
+        'scripts' => '',
+        'page' => '',
+        'classes' => '',
+      ),
+      'template' => 'ghel_certificate_html',
+      'file' => 'ghel_certificate.pages.inc',
+    ),
+  );
+}
+
+
+/**
+ * Return a users array of earned certificates.
+ *
+ * @param object $account
+ *   Fully loaded user object, if not provided the current active user is used.
+ *
+ * @return array
+ *   An array keyed by certificate id of the certificates a user has earned.
+ */
+function ghel_certificate_load_certificates($account = NULL) {
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  $certificates = array();
+  $achievements = achievements_unlocked_already(NULL, $account->uid);
+  if (!empty($achievements)) {
+    foreach ($achievements as $achievement) {
+      if (ghel_certificate_achievement_has_certificate($achievement['achievement_id'])) {
+        $cert_id = $achievement['achievement_id'] . '-' . $account->uid;
+        $certificates[$cert_id] = ghel_certificate_load($cert_id);
+      }
+    }
+  }
+  return $certificates;
+}
+
+/**
+ * Determine if the achievement id in question has a corresponding certificate.
+ *
+ * @param string $achievement_id
+ *   An achievement_id as defined by hook_achievements_info().
+ *
+ * @return bool
+ *   TRUE if the achievement has a certificate FALSE otherwise.
+ */
+function ghel_certificate_achievement_has_certificate($achievement_id) {
+  if (strpos($achievement_id, 'g-c-completion-') === 0) {
+    return TRUE;
+  }
+  elseif(strpos($achievement_id, 'g-p-completion-') === 0) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Return related information about a certificate id.
+ *
+ * @param string $cert_id
+ *   A certificate id.
+ *
+ * @return array
+ *   An array with the following keys (or empty):
+ *     achievement_id: the corresponding achievement id for this certificate.
+ *     uid: the uid this certificate id corresponds to.
+ *     nid: the nid this certificate corresponds to.
+ */
+function ghel_certificate_extract_cert_id_info($cert_id) {
+  $info = array();
+  $parts = explode('-', $cert_id);
+  $uid = array_pop($parts);
+  $achievement_id = implode('-', $parts);
+
+  if (ghel_certificate_achievement_has_certificate($achievement_id)) {
+    // Only concerned with potential certificates ignore other achievements.
+    $info['achievement_id'] = $achievement_id;
+    $info['uid'] = $uid;
+    $info['nid'] = ghel_achievements_get_nid($achievement_id);
+    $info['revision'] = ghel_achievements_get_revision($achievement_id);
+
+    // drop the revision and nid
+    array_pop($parts);
+    array_pop($parts);
+    $info['type'] = implode('-', $parts);
+  }
+  return $info;
+}
+
+/**
+ * Load a certificate definition.
+ *
+ * @param string $cert_id
+ *   A cert_id is expected to be an achievement_id concatenated with '-' and a
+ *   user id. eg. ghel-course-NID-UID where NID is a course id and UID is a user
+ *   id.
+ *
+ * @return mixed
+ *   An array of data for theme_ghel_certificate or FALSE
+ *
+ * @see ghel_certificate_theme
+ */
+function ghel_certificate_load($cert_id) {
+  $cache = &drupal_static(__FUNCTION__);
+  if (empty($cache[$cert_id])) {
+    // Make sure this is likely and achievement id and a uid.
+    $info = ghel_certificate_extract_cert_id_info($cert_id);
+    if (!empty($info)) {
+      $unlocked = achievements_unlocked_already($info['achievement_id'], $info['uid']);
+      if (!empty($unlocked)) {
+        $node = node_load($info['nid']);
+        $user = user_load($info['uid']);
+        if (!empty($node) && !empty($user)) {
+          if(isset($user->{'field_ghel_first_name'})) {
+            $first_lang=key($user->{'field_ghel_first_name'});
+          } else {
+            $first_lang=NULL;
+          }
+          if (isset($user->{'field_ghel_last_name'})) {
+            $last_lang=key($user->{'field_ghel_last_name'});
+          } else {
+            $last_lang=NULL;
+          }
+          $first_name = field_get_items('user', $user, 'field_ghel_first_name',$first_lang);
+          $last_name = field_get_items('user', $user, 'field_ghel_last_name',$last_lang);
+
+          $cache[$cert_id] = array(
+            'title' => $node->title,
+            'first_name' => empty($first_name[0]['value']) ? t('Example') : $first_name[0]['value'],
+            'last_name' => empty($last_name[0]['value']) ? t('User') : $last_name[0]['value'],
+            'pass_date' => date('F j, Y', $unlocked['timestamp']),
+            'uid' => $user->uid,
+            'cert_id' => $cert_id,
+            'type' => $info['type'],
+            'revision' => $info['revision'],
+          );
+
+          // Load additional program details.
+          if ($info['type'] == 'g-p-completion') {
+            $cache[$cert_id]['courses'] = ghel_certificate_load_program_courses($cert_id);
+          }
+        }
+      }
+    }
+    if (!isset($cache[$cert_id])) {
+      $cache[$cert_id] = FALSE;
+    }
+  }
+  return $cache[$cert_id];
+}
+
+/**
+ * Load the corresponding courses for a program.
+ */
+function ghel_certificate_load_program_courses($cert_id) {
+  $courses = array();
+  $info = ghel_certificate_extract_cert_id_info($cert_id);
+  if (!empty($info) && $info['type'] == 'g-p-completion') {
+    $program = node_load($info['nid']);
+    if (!empty($program)) {
+      $course_field = field_get_items('node', $program, 'field_ghel_courses');
+      if (!empty($course_field)) {
+        foreach ($course_field as $item) {
+          $course = node_load($item['target_id']);
+          if (!empty($course)) {
+            $courses[$course->nid] = array(
+              'title' => $course->title,
+            );
+          }
+        }
+      }
+    }
+  }
+  return $courses;
+}
+
+
+/**
+ * Implements hook_block_info().
+ */
+function ghel_certificate_block_info() {
+  $blocks = array(
+    'courses-in-progress' => array(
+      'info' => t('Courses in progress'),
+      'cache' => DRUPAL_NO_CACHE,
+    ),
+    'courses-completed' => array(
+      'info' => t('Completed Courses'),
+      'cache' => DRUPAL_NO_CACHE,
+    ),
+    'programs-in-progress' => array(
+      'info' => t('Programs in progress'),
+      'cache' => DRUPAL_NO_CACHE,
+    ),
+    'programs-complete' => array(
+      'info' => t('Completed Programs'),
+      'cache' => DRUPAL_NO_CACHE,
+    ),
+    'my-certificates' => array(
+      'info' => t('Certificates'),
+      'cache' => DRUPAL_NO_CACHE,
+    ),
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function ghel_certificate_block_view($delta = '') {
+  $block = array();
+  global $user;
+  switch ($delta) {
+    case 'courses-in-progress':
+      $courses = ghel_certificate_load_in_progress_courses($user);
+      $links = ghel_certificate_get_block_content($courses);
+
+      $block = array(
+        'subject' => t('In progress courses'),
+        'content' => empty($links) ? t('You do not have any courses in progress at this time.') : theme('links__articles', array('links' => $links)),
+      );
+      break;
+
+    case 'courses-completed':
+      $courses = ghel_certificate_load_completed_courses($user);
+      $links = ghel_certificate_get_block_content($courses);
+      $block = array(
+        'subject' => t('Completed Courses'),
+        'content' => empty($links) ? t('You do not have any completed courses at this time.') : theme('links__articles', array('links' => $links)),
+      );
+      break;
+
+    case 'programs-in-progress':
+      $programs = ghel_certificate_load_in_progress_programs($user);
+      $links = ghel_certificate_get_block_content($programs);
+      $block = array(
+        'subject' => 'In progress programs',
+        'content' => empty($links) ? t('You do not have any certificate programs in progress at this time.') : theme('links__articles', array('links' => $links)),
+      );
+      break;
+
+    case 'programs-complete':
+      $programs = ghel_certificate_load_completed_programs($user);
+      $links = ghel_certificate_get_block_content($programs);
+      $block = array(
+        'subject' => 'Completed programs',
+        'content' => empty($links) ? t('You do not have any completed certificate programs at this time.') : theme('links__articles', array('links' => $links)),
+      );
+      break;
+
+    case 'my-certificates':
+      $certificates = ghel_certificate_load_certificates($user);
+      $block = array(
+        'subject' => 'My Certificates',
+        'content' => empty($certificates) ? t('You do not have any certificates to download at this time. View available !link.', array('!link' => l(t('certificate programs'), 'certificate-programs'))) : ghel_certificate_overview($user),
+      );
+      break;
+  }
+  return $block;
+}
+
+/**
+ * Helper function to get build block links for courses.
+ *
+ * @param array $courses
+ *   Array of timestamps keyed by course nid.
+ *
+ * @return array
+ *   Links as a render array.
+ */
+function ghel_certificate_get_block_content($courses) {
+  $links = array();
+  foreach ($courses as $nid => $timestamp) {
+    $node = node_load($nid);
+    $links[] = array(
+      'title' => $node->title,
+      'href' => 'node/' . $nid,
+    );
+  }
+  return $links;
+}
+
+
+/**
+ * Load in progress courses.
+ *
+ * @param object $account
+ *   The user account to load the course for.
+ *
+ * @return array
+ *   Array of in progress courses.
+ *
+ *   @see ghel_certificate_load_criteria()
+ */
+function ghel_certificate_load_in_progress_courses($account = NULL) {
+  $cached = &drupal_static(__FUNCTION__);
+
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  if (!isset($cached[$account->uid])) {
+    $cached[$account->uid] = ghel_certificate_load_criteria('ghel-course-start', array('g-c-completion-!nid-!revision'), $account);
+    krsort($cached[$account->uid], SORT_NUMERIC);
+  }
+
+  return $cached[$account->uid];
+}
+
+
+/**
+ * Load in completed programs.
+ *
+ *  @param object $account
+ *   The user account to load the course for.
+ *
+ * @return array
+ *   Array of completed programs.
+ *
+ *   @see ghel_certificate_load_criteria()
+ */
+function ghel_certificate_load_completed_programs($account = NULL) {
+  $cached = &drupal_static(__FUNCTION__);
+
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  if (!isset($cached[$account->uid])) {
+    $cached[$account->uid] = ghel_certificate_load_criteria('g-p-completion', array(), $account);
+    krsort($cached[$account->uid], SORT_NUMERIC);
+  }
+
+  return $cached[$account->uid];
+}
+
+/**
+ * Load completed courses.
+ *
+ * @param object $account
+ *   The user account to load the course for.
+ *
+ * @return array
+ *   Array of completed courses.
+ *
+ *   @see ghel_certificate_load_criteria()
+ */
+function ghel_certificate_load_completed_courses($account = NULL) {
+  $cached = &drupal_static(__FUNCTION__);
+
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  if (!isset($cached[$account->uid])) {
+    $cached[$account->uid] = ghel_certificate_load_criteria('ghel-course-completion', array(), $account);
+    krsort($cached[$account->uid], SORT_NUMERIC);
+  }
+
+  return $cached[$account->uid];
+}
+
+/**
+ * Load in progress programs.
+ */
+function ghel_certificate_load_in_progress_programs($account = NULL) {
+  $cached = &drupal_static(__FUNCTION__);
+
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  if (empty($cached[$account->uid])) {
+    $query = db_select('node', 'n');
+    $query->fields('n', array('nid'))
+      ->condition('type', 'ghel_program');
+    $programs = $query->execute()->fetchAll();
+
+
+    $inprogress = array();
+    if (!empty($programs)) {
+      foreach ($programs as $program) {
+        // Make sure this program isn't achieved.
+        $achievement_id = 'g-p-completion-' . $program->nid . '-0';
+        $complete = achievements_unlocked_already($achievement_id, $account->uid);
+
+        // Make sure they have started at least one course in the program.
+        if (empty($complete)) {
+          $cert_id = 'g-p-completion-' . $program->nid . '-0-' . $account->uid;
+
+          $courses = ghel_certificate_load_program_courses($cert_id);
+
+          foreach ($courses as $nid => $title) {
+            $course = node_load($nid);
+            $revision = ghel_course_get_revision($course);
+            if (achievements_unlocked_already('g-c-start-' . $nid . '-' . $revision)) {
+              $inprogress[$program->nid] = TRUE;
+            }
+          }
+        }
+      }
+    }
+    $cached[$account->uid] = $inprogress;
+  }
+
+  return $cached[$account->uid];
+}
+
+/**
+ * Load achievement nodes for a particular group. This only returns the latest revision.
+ *
+ * @param string $include
+ *   Group of achievements to filter can be one of:
+ *     'ghel-course-start'
+ *     'ghel-course-completion'
+ *     'ghel-final-quiz'
+ *
+ * @param array $exclude
+ *   An array of string patterns to ensure the user has not achieved both the
+ *   include and exlclude achievements. May use !nid in the string to map to the
+ *   corresponding nid, and !revision. eg. g-c-completion-!nid-!revision
+ *
+ * @param mixed $account
+ *   A fully loaded user object or NULL to use the current user.
+ *
+ * @return array
+ *   An array of timestamps keyed by nid matching the given criteria, indicating
+ *   when the user achieved the given achievement.
+ */
+function ghel_certificate_load_criteria($include, $exclude = array(), $account = NULL) {
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  $achievements = achievements_load(NULL, TRUE);
+
+  $achieved = array();
+  if (!empty($achievements[$include]['achievements'])) {
+    foreach ($achievements[$include]['achievements'] as $achievement_id => $details) {
+      $unlocked = achievements_unlocked_already($achievement_id, $account->uid);
+
+      // The user has achieved this, make sure they haven't also achieved the
+      // the excluded achievements.
+      if (!empty($unlocked)) {
+        $parts = explode('-', $achievement_id);
+        $nid = ghel_achievements_get_nid($achievement_id);
+
+        // Default to the latest course revision. This may need refactoring.
+        $course = node_load($nid);
+        $revision = ghel_course_get_revision($course);
+
+        $query = db_select('achievement_unlocks', 'a');
+        $query->fields('a', array('timestamp'))
+          ->condition('achievement_id', $achievement_id)
+          ->condition('uid', $account->uid);
+
+        // Load the time the user achieved this.
+        $results = $query->execute()->fetchAll();
+        $timestamp = reset($results);
+        $achieved[$nid] = $timestamp->timestamp;
+
+        foreach ($exclude as $excluded) {
+          $excluded_id = format_string($excluded, array('!nid' => $nid, '!revision' => $revision));
+
+          // If the user has achieved the excluded item, remove it from the
+          // resultset.
+          $completed = achievements_unlocked_already($excluded_id, $account->uid);
+          if ($completed) {
+            unset($achieved[$nid]);
+          }
+        }
+      }
+    }
+  }
+  return $achieved;
+}
+
+/**
+ * Determines if a certificate is current.
+ *
+ * Current is defined as;
+ *   - The course is published
+ *   - The certificate version matches the course version.
+ *
+ * @param string $cert_id
+ *   The certificate id to check for valid certificate.
+ *
+ * @return bool
+ *   TRUE indicating the certificate is current.
+ */
+function ghel_certificate_is_current($cert_id) {
+  $info = ghel_certificate_extract_cert_id_info($cert_id);
+  if ($info['type'] == 'g-p-completion') {
+    return TRUE;
+  }
+
+  if ($info['type'] == 'g-c-completion') {
+    $course = node_load($info['nid']);
+    if ($course->workflow == GHEL_WORKFLOW_STATE_PUBLISHED) {
+      if ($course->field_ghel_revision[LANGUAGE_NONE][0]['value'] == $info['revision']) {
+        return TRUE;
+      }
+    }
+
+  }
+  return FALSE;
+}
+
+/**
+ * Delivery callback for a certificate.
+ *
+ * @see drupal_deliver_html_page()
+ * @see drupal_render_page()
+ */
+function ghel_certificate_deliver($page_callback_result) {
+  // Emit the correct charset HTTP header, but not if the page callback
+  // result is NULL, since that likely indicates that it printed something
+  // in which case, no further headers may be sent, and not if code running
+  // for this page request has already set the content type header.
+  if (isset($page_callback_result) && is_null(drupal_get_http_header('Content-Type'))) {
+    drupal_add_http_header('Content-Type', 'text/html; charset=utf-8');
+  }
+  // Send appropriate HTTP-Header for browsers and search engines.
+  global $language;
+  drupal_add_http_header('Content-Language', $language->language);
+
+  // Menu status constants are integers; page content is a string or array.
+  if (is_int($page_callback_result)) {
+    // @todo: Break these up into separate functions?
+    switch ($page_callback_result) {
+      case MENU_NOT_FOUND:
+        // Print a 404 page.
+        drupal_add_http_header('Status', '404 Not Found');
+
+        watchdog('page not found', check_plain($_GET['q']), NULL, WATCHDOG_WARNING);
+
+        // Check for and return a fast 404 page if configured.
+        drupal_fast_404();
+
+        // Keep old path for reference, and to allow forms to redirect to it.
+        if (!isset($_GET['destination'])) {
+          $_GET['destination'] = $_GET['q'];
+        }
+
+        $path = drupal_get_normal_path(variable_get('site_404', ''));
+        if ($path && $path != $_GET['q']) {
+          // Custom 404 handler. Set the active item in case there are tabs to
+          // display, or other dependencies on the path.
+          menu_set_active_item($path);
+          $return = menu_execute_active_handler($path, FALSE);
+        }
+
+        if (empty($return) || $return == MENU_NOT_FOUND || $return == MENU_ACCESS_DENIED) {
+          // Standard 404 handler.
+          drupal_set_title(t('Page not found'));
+          $return = t('The requested page "@path" could not be found.', array('@path' => request_uri()));
+        }
+
+        drupal_set_page_content($return);
+        $page = element_info('page');
+        print drupal_render_page($page);
+        break;
+
+      case MENU_ACCESS_DENIED:
+        // Print a 403 page.
+        drupal_add_http_header('Status', '403 Forbidden');
+        watchdog('access denied', check_plain($_GET['q']), NULL, WATCHDOG_WARNING);
+
+        // Keep old path for reference, and to allow forms to redirect to it.
+        if (!isset($_GET['destination'])) {
+          $_GET['destination'] = $_GET['q'];
+        }
+
+        $path = drupal_get_normal_path(variable_get('site_403', ''));
+        if ($path && $path != $_GET['q']) {
+          // Custom 403 handler. Set the active item in case there are tabs to
+          // display or other dependencies on the path.
+          menu_set_active_item($path);
+          $return = menu_execute_active_handler($path, FALSE);
+        }
+
+        if (empty($return) || $return == MENU_NOT_FOUND || $return == MENU_ACCESS_DENIED) {
+          // Standard 403 handler.
+          drupal_set_title(t('Access denied'));
+          $return = t('You are not authorized to access this page.');
+        }
+
+        print drupal_render_page($return);
+        break;
+
+      case MENU_SITE_OFFLINE:
+        // Print a 503 page.
+        drupal_maintenance_theme();
+        drupal_add_http_header('Status', '503 Service unavailable');
+        drupal_set_title(t('Site under maintenance'));
+        print theme('maintenance_page', array(
+          'content' => filter_xss_admin(variable_get('maintenance_mode_message',
+          t('@site is currently under maintenance. We should be back shortly. Thank you for your patience.', array('@site' => variable_get('site_name', 'Drupal')))
+        ))));
+        break;
+    }
+  }
+  elseif (isset($page_callback_result)) {
+    $cert_id = explode('-', arg(2));
+    $course = node_load($cert_id[3]);
+    $variables['page'] = $page_callback_result;
+
+    $html = theme('ghel_certificate_html', $variables);
+    ghel_certificate_build_pdf($html, $course);
+//    print $html;
+    // We don't call pdf_using_mpdf directly because we can't control the process.
+
+    //$val = pdf_using_mpdf_api($html, 'GHEL-certificate.pdf');
+  }
+
+  // Perform end-of-request tasks.
+  drupal_page_footer();
+}

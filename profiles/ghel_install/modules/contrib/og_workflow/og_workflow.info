@@ -1,0 +1,9 @@
+name = "Organic groups workflow"
+description = "Provides OG groups role based transition control for Workflow module."
+dependencies[] = og
+dependencies[] = og_context
+dependencies[] = workflow
+dependencies[] = workflow_admin_ui
+
+package = "Organic groups"
+core = 7.x

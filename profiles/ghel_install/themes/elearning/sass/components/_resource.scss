@@ -1,0 +1,15 @@
+.node-type-ghel-resource {
+  @extend %submitted;
+
+  .field {
+    margin-bottom: rhythm(6);
+  }
+
+  .field-label {
+    font-size: 1.3em;
+  }
+
+  .field-ghel-er-partof {
+  	@extend %affiliation;
+  }
+}

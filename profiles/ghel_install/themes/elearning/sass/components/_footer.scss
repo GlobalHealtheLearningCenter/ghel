@@ -1,0 +1,56 @@
+//
+// @file
+// Non-layout Footer region styles.
+
+#footer {
+  @include clearfix;
+  padding: rhythm(4) 0;
+
+  > .page-width {
+    padding: 0 $w-gutter;
+  }
+}
+
+.nav--footer {
+  text-align: center;
+
+  > .nav-item {
+    display: inline;
+  }
+
+  > .nav-item > .nav-link {
+    @include link-colors($gray, $gray-darker);
+    @include adjust-font-size-to($fs-xs);
+    margin: 0 $w-gutter-half;
+  }
+}
+
+#block-menu-block-ghel-base-menu-blocks-4 {
+  @include box-sizing(border-box);
+  margin-bottom: rhythm(4);
+
+  @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+    @include zen-grid-item(6, 4);
+  }
+}
+
+  @include breakpoint($mobile, $no-query: '.lt-ie9') {
+    @include zen-grid-item(6, 1);
+  }
+
+  @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+    @include zen-grid-item(3, 1);
+  }
+}
+
+  @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+    @include zen-grid-item(3, 1, right);
+  }
+}
+
+// Facebook link
+.nav-link-facebook:before {
+  @include button-icon;
+  @include icon-sprite(facebook);
+  margin-right: 4px;
+}

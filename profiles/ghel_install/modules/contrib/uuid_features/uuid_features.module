@@ -1,0 +1,125 @@
+<?php
+
+/**
+ * Implements hook_features_api().
+ */
+function uuid_features_features_api() {
+  $components = array();
+
+  $components['uuid_node'] = array(
+    'name' => t('Content'),
+    'feature_source' => TRUE,
+    'default_hook' => 'uuid_features_default_content',
+    'default_file' => FEATURES_DEFAULTS_INCLUDED,
+    'file' => drupal_get_path('module', 'uuid_features') . '/includes/uuid_node.features.inc',
+  );
+
+  $components['uuid_term'] = array(
+    'name' => t('Taxonomy Term'),
+    'feature_source' => TRUE,
+    'default_hook' => 'uuid_features_default_terms',
+    'default_file' => FEATURES_DEFAULTS_INCLUDED,
+    'file' => drupal_get_path('module', 'uuid_features') . '/includes/uuid_term.features.inc',
+  );
+
+  // Depends on http://drupal.org/node/808690
+  if (function_exists('uuid_file_insert')) {
+    $components['uuid_file'] = array(
+      'name' => t('File'),
+      'default_hook' => 'uuid_features_default_files',
+      'default_file' => FEATURES_DEFAULTS_INCLUDED,
+      'file' => drupal_get_path('module', 'uuid_features') . '/includes/uuid_file.features.inc',
+    );
+  }
+
+  return $components;
+}
+
+/**
+ * Load all include files for enabled modules that this module provides
+ * on-behalf-of functionality for.
+ */
+function uuid_features_load_module_includes() {
+  static $loaded = FALSE;
+
+  if (!$loaded) {
+    $inc_path = drupal_get_path('module', 'uuid_features') . '/includes/modules';
+    foreach (module_list() as $module) {
+      $file = "$inc_path/$module.inc";
+      if (file_exists($file)) {
+        include_once DRUPAL_ROOT . '/' . $file;
+      }
+    }
+    $loaded = TRUE;
+  }
+}
+
+/**
+ * Implements hook_features_pipe_COMPONENT_alter().
+ *
+ * When exporting a vocabulary, include its terms.
+ */
+function uuid_features_features_pipe_taxonomy_alter(&$pipe, $data, $export) {
+  if ($vocab = taxonomy_vocabulary_machine_name_load($data)) {
+    foreach (taxonomy_get_tree($vocab->vid) as $term) {
+      uuid_term_features_get_dependencies($export, $term->uuid);
+    }
+    $pipe['uuid_term'] = $export['features']['uuid_term'];
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function uuid_features_menu() {
+  $items = array();
+
+  $items['admin/config/system/uuid-features'] = array(
+    'title' => 'UUID Features',
+    'description' => 'Configure uuid_features export settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uuid_features_admin'),
+    'access arguments' => array('administer uuid_features'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+/**
+ * System settings form for uuid_features().
+ */
+function  uuid_features_admin() {
+  $types = node_type_get_types();
+
+  $options = array();
+  foreach($types as $type) {
+    $options[$type->type] = $type->name;
+  }
+  $form['uuid_features_node_types'] = array(
+    '#title' => t('Exportable node types'),
+    '#type' => 'select',
+    '#multiple' => TRUE,
+    '#options' => $options,
+    '#default_value' => variable_get('uuid_features_node_types', array_keys(node_type_get_types())),
+    '#description' => t('The node types to include as options for uuid_features export.'),
+  );
+
+  $vocabs = taxonomy_vocabulary_get_names();
+  $options = array();
+
+  foreach ($vocabs as $vid => $vocab) {
+    $options[$vocab->machine_name] = $vocab->name;
+  }
+
+  $form['uuid_features_term_vocabs'] = array(
+    '#title' => t('Exportable term vocabularies'),
+    '#type' => 'select',
+    '#multiple' => TRUE,
+    '#options' => $options,
+    '#default_value' => variable_get('uuid_features_term_vocabs', array_keys(taxonomy_vocabulary_get_names())),
+    '#description' => t('The vocabularies to include terms from for uuid_term export.'),
+  );
+
+  return system_settings_form($form);
+}

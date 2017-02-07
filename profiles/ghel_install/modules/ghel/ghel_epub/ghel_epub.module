@@ -1,0 +1,155 @@
+<?php
+/**
+ * @file
+ * Provides integration with the epub_export module.
+ */
+
+/**
+ * Implements hook_epub_export_assets_alter().
+ *
+ * We need to remove quiz and any other content type that should not be included
+ * in the EPUB export.
+ */
+function ghel_epub_epub_export_exports_alter(&$assets, $context) {
+  // Array keyed by entity_type of associated bundles to remove.
+  $remove_types = array(
+    'node' => array('quiz'),
+  );
+
+  foreach ($assets as $uri => $asset) {
+    if (isset($asset['node'])) {
+      $node = current($asset['node']);
+      if (in_array($node->type, $remove_types['node'])) {
+        unset($assets[$uri]);
+      }
+    }
+
+    // check files
+    ghel_epub_rewrite_file($assets[$uri]);
+  }
+}
+
+/**
+ * Rewrite the file if necessary.
+ */
+function ghel_epub_rewrite_file(&$asset) {
+  if ($asset['mime'] == 'text/css') {
+    $paths = ghel_epub_replacement_paths();
+    $strings = ghel_epub_replacement_strings();
+    if (is_file($asset['file'])) {
+      $data = file_get_contents($asset['file']);
+      foreach ($paths as $search => $replace) {
+        $data = str_replace($search, $replace, $data);
+      }
+
+      foreach ($strings as $search => $replace) {
+        $data = str_replace($search, $replace, $data);
+      }
+      $asset['file_contents'] = $data;
+    }
+  }
+}
+
+/**
+ * Return an array of strings to rewrite keyed by source.
+ */
+function ghel_epub_replacement_paths() {
+  return array(
+    // Path based rewrites EPUB doesn't allow absolute URLs
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/loading_animation.gif' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/loading_animation.gif',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/misc/ui/images/ui-bg_glass_75_e6e6e6_1x400.png' => '../misc/ui/images/ui-bg_glass_75_e6e6e6_1x400.png',
+    '/misc/throbber.gif' => '../misc/throbber.gif',
+    '/misc/grippie.png' => '../misc/grippie.png',
+    '/misc/draggable.png' => '../misc/draggable.png',
+    '/misc/tree.png' => '../misc/tree.png',
+    '/misc/tree-bottom.png' => '../misc/tree-bottom.png',
+    '/misc/tree.png' => '../misc/tree.png',
+    '/misc/throbber.gif' => '../misc/throbber.gif',
+    '/misc/help.png' => '../misc/help.png',
+    '/misc/menu-expanded.png' => '../misc/menu-expanded.png',
+    '/misc/menu-collapsed.png' => '../misc/menu-collapsed.png',
+    '/misc/progress.gif' => '../misc/progress.gif',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-social-circle.eot' => '../profiles/ghel_install/themes/elearning/webfonts/ss-social-circle.eot',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-social-circle.eot' => '../profiles/ghel_install/themes/elearning/webfonts/ss-social-circle.eot',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-social-circle.woff' => '../profiles/ghel_install/themes/elearning/webfonts/ss-social-circle.woff',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-social-circle.ttf' => '../profiles/ghel_install/themes/elearning/webfonts/ss-social-circle.ttf',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-social-regular.eot' => '../profiles/ghel_install/themes/elearning/webfonts/ss-social-regular.eot',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-social-regular.eot' => '../profiles/ghel_install/themes/elearning/webfonts/ss-social-regular.eot',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-social-regular.woff' => '../profiles/ghel_install/themes/elearning/webfonts/ss-social-regular.woff',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-social-regular.ttf' => '../profiles/ghel_install/themes/elearning/webfonts/ss-social-regular.ttf',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-standard.eot' => '../profiles/ghel_install/themes/elearning/webfonts/ss-standard.eot',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-standard.eot' => '../profiles/ghel_install/themes/elearning/webfonts/ss-standard.eot',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-standard.woff' => '../profiles/ghel_install/themes/elearning/webfonts/ss-standard.woff',
+    '/profiles/ghel_install/themes/elearning/webfonts/ss-standard.ttf' => '../profiles/ghel_install/themes/elearning/webfonts/ss-standard.ttf',
+    '/profiles/ghel_install/themes/elearning/images/icon-sd792fa4f69.png' => '../profiles/ghel_install/themes/elearning/images/icon-sd792fa4f69.png',
+    '/profiles/ghel_install/themes/elearning/images/above-content-bg.jpg' => '../profiles/ghel_install/themes/elearning/images/above-content-bg.jpg',
+    '/profiles/ghel_install/themes/elearning/images/above-content-bg.jpg' => '../profiles/ghel_install/themes/elearning/images/above-content-bg.jpg',
+    '/profiles/ghel_install/themes/elearning/css/override/images/add.png' => '../profiles/ghel_install/themes/elearning/css/override/images/add.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/loading_animation.gif' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/loading_animation.gif',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/loading_animation.gif' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/loading_animation.gif',
+    '/profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png' => '../profiles/ghel_install/modules/contrib/colorbox/styles/default/images/controls.png',
+    '/misc/ui/images/ui-bg_glass_75_e6e6e6_1x400.png' => '../misc/ui/images/ui-bg_glass_75_e6e6e6_1x400.png',
+  );
+}
+
+/**
+ * Additional css cleanup strings.
+ */
+function ghel_epub_replacement_strings() {
+  return array(
+    // The 'direction' property must not be included in an EPUB Style sheet.
+    '.ui-datepicker-rtl{direction:rtl;}' => '',
+
+    // social icon issues with SVG see themes/elearning/webfonts/*.css
+    ",url(/profiles/ghel_install/themes/elearning/webfonts/ss-social-circle.svg#SSSocialCircle) format('svg');" => ";",
+    ",url(/profiles/ghel_install/themes/elearning/webfonts/ss-social-regular.svg#SSSocialRegular) format('svg');" => ";",
+    ",url(/profiles/ghel_install/themes/elearning/webfonts/ss-standard.svg#SSStandard) format('svg');" => ";",
+
+    // The fixed value of the position property is not part of the EPUB 3 CSS Profile.
+    "position:fixed;" => "",
+  );
+}
+
+/**
+ * Implements hook_epub_export_find_assets_alter().
+ */
+function ghel_epub_epub_export_find_assets_alter(&$assets, $context) {
+  if ($context['entity_type'] == 'node') {
+    $node = node_load($context['id']);
+
+    // Add the course pages to the course node.
+    if ($node->type == 'ghel_course') {
+      $items = field_get_items('node', $node, 'field_ghel_course_navigation');
+      if (!empty($items)) {
+        unset($assets);
+        foreach($items as $item) {
+          $assets['node/' . $item['target_id']] = array('nav' => TRUE);
+        }
+      }
+    }
+  }
+
+  ghel_epub_include_css_binaries($assets, $context);
+}
+
+
+function ghel_epub_include_css_binaries(&$assets, $context) {
+  $css_files = array_keys(ghel_epub_replacement_paths());
+  foreach ($css_files as $file) {
+    $assets[$file] = array('nav' => FALSE);
+  }
+}

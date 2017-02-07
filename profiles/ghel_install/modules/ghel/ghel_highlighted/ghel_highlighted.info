@@ -1,0 +1,16 @@
+name = GHeL Highlighted
+description = The boxes and contexts for the front page highlighted items.
+core = 7.x
+package = GHeL
+version = 7.x-1.0-dev
+project = ghel_highlighted
+dependencies[] = boxes
+dependencies[] = context
+dependencies[] = ctools
+features[box][] = ghel_headline_box
+features[box][] = ghel_signup_button_box
+features[context][] = ghel_front_page_headline
+features[context][] = ghel_front_page_registration_buttons
+features[ctools][] = boxes:box:1
+features[ctools][] = context:context:3
+features[features_api][] = api:2

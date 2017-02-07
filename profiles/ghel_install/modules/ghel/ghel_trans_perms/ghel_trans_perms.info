@@ -1,0 +1,14 @@
+name = Translation permissions
+description = Permissions for Translations
+core = 7.x
+package = Translations
+version = 7.x-0.1
+project = ghel_trans_perms
+dependencies[] = features
+dependencies[] = ghel_translation
+features[features_api][] = api:2
+features[user_permission][] = create ghel_translation content
+features[user_permission][] = delete any ghel_translation content
+features[user_permission][] = delete own ghel_translation content
+features[user_permission][] = edit any ghel_translation content
+features[user_permission][] = edit own ghel_translation content

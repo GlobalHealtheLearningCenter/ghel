@@ -1,0 +1,18 @@
+.break {
+  page-break-after: always;
+}
+
+div.break:not(:first-child) {
+  page-break-before: avoid;
+}
+
+.view-content div.break:last-child,
+.view-content {
+  page-break-after: avoid;
+}
+
+body > h1 {
+  font-family: "Open Sans","Helvetica Neue",Arial,Helvetica,"Lucida Grande",Verdana,sans-serif;
+  font-family: Arial,Helvetica,"Lucida Grande",Verdana,sans-serif;
+  margin-bottom: 0.5em;
+}

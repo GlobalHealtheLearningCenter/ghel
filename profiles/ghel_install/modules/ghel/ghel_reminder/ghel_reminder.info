@@ -1,0 +1,8 @@
+name = GHEL Reminders
+description = Send out reminders at 3 and 6 months after start of course if not completed
+core = 7.x
+package = GHeL
+version = 7.x-0.1
+project = ghel_reminder
+dependencies[] = ghel_achievements
+dependencies[] = ghel_mail_safety

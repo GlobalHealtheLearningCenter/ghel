@@ -1,0 +1,88 @@
+//
+// @file
+// Block specific styles.
+
+.block-spaced {
+  margin: rhythm(4) 0;
+}
+
+#boxes-box-ghel_signup_button_box {
+  text-align: center;
+  margin: 0 $w-gutter-half rhythm(11);
+}
+
+#content {
+  @include nup-container;
+  overflow:visable;
+}
+
+#block-views-035d3df99f27c035491978a040a0b516,
+#block-views-ghel-announcements-block,
+#block-views-ghel-testimonials-block {
+  @include nup-base(36px);
+  @include nup-item;
+  @include nup-item(1);
+  margin-bottom: rhythm(4);
+
+  @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+    @include nup-item(2);
+  }
+
+  @include breakpoint($tablet-wide, $no-query: '.lt-ie9') {
+    @include nup-item(3);
+  }
+}
+
+#block-views-ghel-testimonials-block {
+  @include breakpoint($mobile-wide ($tablet-wide - 1px)) {
+    @include nup-item(1);
+  }
+}
+
+// Program list on course pages.
+
+#block-views-program-list-block-block > .block-title {
+  margin: rhythm(6, $fs-xxl) 0 rhythm(2, $fs-xxl);
+}
+
+#block-ghel-reports-observations {
+  #block-content {
+    @include nup-container;
+  }
+  li {
+    @include nup-base(36px);
+    @include nup-item;
+    @include nup-item(1);
+    margin-bottom: rhythm(4);
+    padding-top: 20px;
+    padding-bottom: 20px;
+    color: $gray-dark;
+    &.last {
+      border: none;
+    }
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      @include nup-item(2);
+    }
+
+    @include breakpoint($tablet-wide, $no-query: '.lt-ie9') {
+      @include nup-item(3);
+      border-right: 1px solid #ccc;
+
+    }
+  }
+  h2 {
+    color: $orange;
+    padding-left: 36px;
+  }
+  em.placeholder {
+    color: $orange;
+  }
+  ul {
+    margin-left: 0;
+    padding: 0;
+  }
+  ul li {
+   list-style: none;
+
+  }
+}

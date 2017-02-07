@@ -1,0 +1,69 @@
+;-------------- B A S I C   S E T T I N G S -------------
+name = eLearning Theme
+description = A center-based theme for the eLearning site.
+core = 7.x
+base theme = center
+
+;-------------- F E A T U R E S -------------
+
+features[] = logo
+features[] = favicon
+features[] = main_menu
+
+;-------------- R E G I O N S -------------
+
+regions[page_top]           = Page Top
+regions[page_bottom]        = Page Bottom
+
+regions[utility]            = Utility
+regions[util_nav]			= Utility - Nav in header
+regions[header]             = Header
+regions[navigation]         = Navigation
+regions[course_navigation]  = Course Navigation
+
+regions[help]               = Help
+regions[highlighted]        = Highlighted
+
+regions[above_content]      = Above Content
+regions[content]            = Content
+regions[sidebar_first]      = Sidebar First
+regions[sidebar_second]     = Sidebar Second
+regions[below_content]      = Below Content
+regions[below_content_course_one]	= Course nav Below Content one
+regions[below_content_course_two]	= Course nav Below Content two
+regions[course_blocks_dashboard] = Course Blocks Dashboard
+regions[author_blocks_dashboard] = Author Blocks Dashboard
+
+;Quicktabs
+regions[quicktabs]          = Quicktabs
+
+; Tabs
+regions[tab_pages]          = Tab - Pages
+regions[tab_feedback]       = Tab - Feedback
+regions[tab_highlights]     = Tab - Highlights
+regions[tab_glossary]       = Tab - Glossary
+regions[tab_course]         = Tab - Course
+regions[tab_resources]      = Tab - Resources
+regions[tab_reference]      = Tab - Reference
+
+regions[footer]             = Footer
+regions[admin_footer]       = Admin Footer
+
+;-------------- C S S -------------
+stylesheets[all][] = webfonts/ss-social.css
+stylesheets[all][] = webfonts/ss-standard.css
+stylesheets[all][] = chosen_v1.4.2/chosen.min.css
+stylesheets[all][] = css/screen.css
+; Overrides
+stylesheets[all][] = css/override/quiz.css
+
+stylesheets[print][] = css/override/print.css
+
+;-------------- J S -------------
+scripts[] = js/jquery.cookie.js
+scripts[] = webfonts/ss-social.js
+scripts[] = webfonts/ss-standard.js
+scripts[] = chosen_v1.4.2/chosen.jquery.min.js
+scripts[] = js/main.js
+scripts[] = js/Global_GA.js
+

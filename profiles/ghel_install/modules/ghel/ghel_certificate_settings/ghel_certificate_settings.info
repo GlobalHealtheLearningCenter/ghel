@@ -1,0 +1,8 @@
+name = GHeL Certificate Settings
+description = Settings and permissions for the GHeL Certificate module
+core = 7.x
+package = GHeL
+dependencies[] = features
+dependencies[] = ghel_certificate
+features[features_api][] = api:2
+features[user_permission][] = view own certificates

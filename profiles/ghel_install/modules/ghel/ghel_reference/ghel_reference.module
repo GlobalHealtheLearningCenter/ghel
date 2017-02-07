@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Reference feature.
+ */
+
+include_once 'ghel_reference.features.inc';

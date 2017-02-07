@@ -1,0 +1,7 @@
+name = GHeL Node Access
+description = Hide course content from anonymous users.
+core = 7.x
+package = GHeL
+version = 7.x-1.0-dev
+project = ghel_node_access
+dependencies[] = ghel_course

@@ -1,0 +1,168 @@
+.field-label {
+  @include adjust-font-size-to($fs-xs);
+  font-weight: bold;
+  color: $gray-darker;
+}
+
+fieldset {
+  margin: rhythm(2) 0;
+
+  legend {
+    margin: 0 rhythm(1);
+    padding: 0 rhythm(1);
+    font-weight: bold;
+  }
+}
+
+// Override default h3 styles.
+h3.field-label {
+  font-family: $primary-typeface;
+  margin-bottom: 0;
+}
+
+// Make up for the fact that the ul field theme function has no wrapper.
+ul.field-items {
+  margin-top: 0;
+  margin-bottom: rhythm(2);
+
+  > li {
+    margin-bottom: rhythm(1);
+  }
+}
+
+.learn-more,
+.read-more,
+.node-link a {
+  color:$blue;
+  &:after {
+    font-family: FontAwesome;
+    content: "\f0da";
+    margin-right: -4px;
+  }
+}
+
+
+.node-link a {
+  padding-left: 0;
+}
+
+.ghel-learn-more {
+  padding: rhythm(1, $fs-xxs) 0;
+}
+
+section > .field-label {
+  @include adjust-font-size-to($h2-font-size);
+}
+
+// DATES
+
+.date-thumbnail {
+  @include border-radius(22px);
+  height: 32px;
+  width: 36px;
+  border: 1px solid $border-color;
+  padding: 6px 4px;
+  text-align: center;
+
+  > .month,
+  > .day {
+    display: block;
+    width: 36px;
+    text-transform: uppercase;
+  }
+
+  > .month {
+    color: $gray;
+    line-height: 12px;
+    font-size: 11px;
+  }
+
+  > .day {
+    font-size: 18px;
+    line-height: 18px;
+    color: $orange;
+  }
+}
+
+// TESTIMONIALS
+
+.field-ghel-course-program {
+  margin-top: rhythm(2);
+
+  > a {
+    @extend .article-title;
+    @extend .article-title-small;
+  }
+}
+
+.field-ghel-first-name {
+  display: inline;
+  font-style: normal;
+  font-size: 12px;
+}
+
+.field-ghel-location {
+  @include adjust-font-size-to($fs-xs);
+  display: inline;
+  margin-left: $w-gutter-half / 2;
+
+  &:before {
+    content: "\2022";
+    margin-right: $w-gutter-half / 2;
+  }
+}
+
+// Highlights
+.highlights {
+  margin-top:rhythm(4);
+  float: left;
+  clear: both;
+  width: 100%;
+}
+
+.highlight {
+  @include box-shadow(
+    $gray-light 0 -1px 1px inset,
+    $gray-lightest 0 0 0px 3px inset
+  );
+  @include border-radius(8px);
+  // @include rhythm-borders(1px, 3);
+  @include box-sizing(border-box);
+  float: left;
+  width: 100%;
+  // padding-right: $w-gutter;
+  // padding-left: $w-gutter;
+  border-color: $gray-lightest;
+  margin-bottom: rhythm(4);
+  @include breakpoint($tablet) {
+    width: 47.5%;
+  }
+}
+
+.highlight-1 {
+  @include breakpoint($tablet) {
+    margin-right: 5%;
+  }
+}
+
+.highlight-heading {
+  @include adjust-font-size-to($fs-l);
+  @include box-sizing(border-box);
+  margin: 0 0 rhythm(1,$fs-l);
+  padding: 20px 20px 0 20px;
+  font-weight: bold;
+  font-family: $primary-typeface;
+}
+
+.highlight-content {
+  @include adjust-font-size-to($fs-s);
+  color: $gray-dark;
+  @include box-sizing(border-box);
+  padding: 10px 20px;
+}
+
+// TRANSLATIONS
+
+.node-ghel-translation.node-teaser h3.article-title {
+  color: $secondary-color;
+}

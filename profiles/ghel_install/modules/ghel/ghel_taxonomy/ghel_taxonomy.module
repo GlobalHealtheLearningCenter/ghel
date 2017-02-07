@@ -1,0 +1,81 @@
+<?php
+/**
+ * @file
+ * Taxonomy features and custom formatter for colorbox display.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function ghel_taxonomy_menu() {
+  $items['gheltaxonomy/term/%taxonomy_term'] = array(
+    'title' => 'Taxonomy term',
+    'title callback' => 'taxonomy_term_title',
+    'title arguments' => array(2),
+    'page callback' => 'ghel_taxonomy_term_page',
+    'page arguments' => array(2),
+    'access arguments' => array('access content'),
+  );
+  return $items;
+}
+
+/**
+ * Menu callback; displays just a term definition with no other drupal content.
+ *
+ * @param $term
+ *   The taxonomy term.
+ * @return
+ *   The page content.
+ *
+ * @see taxonomy_term_page().
+ */
+function ghel_taxonomy_term_page($term) {
+  global $language;
+  global $base_url;
+//  global $user;
+  $lang='';
+  if ($language->language!="en") {
+   $lang="/".$language->language;
+  }
+  // Commenting out old way to get term to accommodate Lingotek translation
+//
+  $content = taxonomy_term_view($term, 'full', $language->language);
+  $content['#prefix'] = '<h2>' . t("@title", array("@title" => check_plain($term->name))) . '</h2>';
+  print(t("!content", array("!content" => drupal_render($content))));
+//
+
+/*
+  $session_name = ini_get('session.name');
+  $headers = array('headers' => array('Cookie' => $session_name . '=' . $user->sid));
+  $fullpage=drupal_http_request($base_url . $lang . "/taxonomy/term/" . $term->tid, $headers);
+  $html=new DOMDocument();
+  libxml_use_internal_errors(TRUE);
+  $html->loadHTML($fullpage->data);
+  libxml_clear_errors();
+  $xpath = new DOMXPath($html);
+  $title=printClasses($xpath,"page-title");
+  $description=printClasses($xpath,"vocabulary-ghel-glossary");
+  outputTerm($title,$description);
+*/
+  drupal_exit();
+}
+
+function printClasses($xpath,$classname) {
+  $nodes = $xpath->query("//*[contains(@class, '$classname')]");
+  foreach ($nodes as $n) {
+   return mb_convert_encoding($n->nodeValue,'ISO-8859-1','utf-8');
+  }
+}
+
+function outputTerm($title,$description) {
+ echo <<<END
+ <h2>$title</h2>
+ <div class="taxonomy-term vocabulary-ghel-glossary">
+  <div class="content">
+    <div class="taxonomy-term-description"> 
+    <p>$description</p>
+    </div>  
+   </div>
+  </div>
+END;
+}

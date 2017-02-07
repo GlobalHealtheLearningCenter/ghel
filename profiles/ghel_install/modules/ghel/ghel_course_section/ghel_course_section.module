@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Course Page feature.
+ */
+
+include_once 'ghel_course_section.features.inc';

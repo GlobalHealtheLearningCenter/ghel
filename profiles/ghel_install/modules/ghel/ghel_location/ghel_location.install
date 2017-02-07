@@ -1,0 +1,115 @@
+<?php
+
+/**
+ * Implements hook_schema
+ */
+function ghel_location_schema() {
+
+  $schema['ghel_location_lookup'] = array(
+
+    'description' => 'Lookup table for Ghel Location data',
+    'fields' => array(
+      'lid' => array(
+        'description' => 'Primary Key',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'region_key' => array(
+        'description' => 'Region Key associated with user profile dropdown',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'sub_region_key' => array(
+        'description' => 'Sub Region Key associated with user profile dropdown',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'location_description' => array(
+        'description' => 'Location description.  Not needed, but helpful in debugging.',
+        'type' => 'varchar',
+        'length' => '150',
+        'not null' => FALSE,
+      ),
+      'location_key' => array(
+        'description' => 'Location ID associated with user dropdown',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('lid'),
+    );
+
+    return($schema);
+}
+
+function ghel_location_uninstall(){
+  drupal_set_message('uninstall');
+}
+
+/**
+ * Implementation of hook_install().
+ *
+ * Import a CSV file of location data into ghel_location_lookup.
+ * See README for more on data.
+ */
+function ghel_location_install() {
+
+  $records = file(drupal_get_path('module', 'ghel_location') . '/data/ghel_location.csv');
+
+  foreach($records as $line) {
+
+    $record = explode( ',', $line);
+
+    try{
+      db_insert('ghel_location_lookup')
+        ->fields(array(
+          'region_key' => $record[1],
+          'sub_region_key' => $record[2],
+          'location_description' => $record[3],
+          'location_key' => $record[4],
+        ))
+        ->execute();
+     }catch (Exception $e) {
+          watchdog_exception('type', $e);
+     }
+
+  }
+}
+
+/**
+ * Fix region_key and sub_region_key entries for North American countries,
+ * Congo and Macao in the ghel_location_lookup table.
+ */
+function ghel_location_update_7101() {
+//  update_sql("UPDATE {ghel_location_lookup} SET region_key = 21, sub_region_key = 124 WHERE region_key = 4 AND sub_region_key = 4");
+//  update_sql("UPDATE {ghel_location_lookup} SET region_key = 2, sub_region_key = 17 WHERE location_key = 178");
+
+  db_update('ghel_location_lookup')
+    ->fields(array(
+      'region_key' => 21,
+      'sub_region_key' => 124,
+    ))
+    ->condition('region_key', 4, '=')
+    ->condition('sub_region_key', 4, '=')
+    ->execute();
+
+  db_update('ghel_location_lookup')
+    ->fields(array(
+      'region_key' => 2,
+      'sub_region_key' => 17,
+    ))
+    ->condition('location_key', 178, '=')
+    ->execute();
+
+  db_update('ghel_location_lookup')
+    ->fields(array(
+      'region_key' => 142,
+      'sub_region_key' => 30,
+    ))
+    ->condition('location_key', 446, '=')
+    ->execute();
+}

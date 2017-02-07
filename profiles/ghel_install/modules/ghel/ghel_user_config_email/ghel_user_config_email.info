@@ -1,0 +1,11 @@
+name = GHeL User Config Email
+core = 7.x
+package = Features
+version = 7.x-0.1
+project = ghel_user_config_email
+dependencies[] = features
+dependencies[] = list
+dependencies[] = options
+features[features_api][] = api:1
+features[field][] = user-user-field_ghel_cert_revocation
+features[field][] = user-user-field_ghel_reminder

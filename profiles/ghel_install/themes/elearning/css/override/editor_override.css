@@ -1,0 +1,11 @@
+/* line 4, ../../sass/override/editor_override.scss */
+.image-medium_left, .image-large_left {
+  float: left;
+  margin: 4px 10px 4px 0;
+}
+
+/* line 9, ../../sass/override/editor_override.scss */
+.image-medium_right, .image-large_right {
+  float: right;
+  margin: 4px 0 4px 30px;
+}

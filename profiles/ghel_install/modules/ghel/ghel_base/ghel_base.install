@@ -1,0 +1,198 @@
+<?php
+define('GHEL_BASE_NODE_CAP', 25);
+
+/**
+ * Updates course content nodes to ensure they have group content access fields.
+ */
+function ghel_base_update_7100(&$sandbox) {
+  // setup our batch details
+  if (!isset($sandbox['progress'])) {
+    // Note if workflow is NULL content type likely not associated with course.
+    $query = "SELECT n.nid, w.sid
+      FROM {node} n
+      LEFT JOIN {og_membership} og on n.nid = og.etid
+      LEFT JOIN {node} c ON c.nid = og.gid
+      LEFT JOIN {workflow_node} w ON w.nid = c.nid
+      WHERE n.nid NOT IN (
+        SELECT entity_id
+        FROM {field_data_group_content_access}
+        WHERE entity_type = :node
+      )
+      AND n.type IN (:type_page, :type_section, :type_quiz)
+      ORDER BY n.nid";
+
+    $args = array(
+      ':node' => 'node',
+      ':type_page' => 'ghel_course_page',
+      ':type_section' => 'ghel_course_section',
+      ':type_quiz' => 'quiz',
+    );
+    $result = db_query($query, $args);
+
+    $total = $result->rowCount();
+    $sandbox['progress'] = 0;
+    $sandbox['max'] = $total;
+    $sandbox['rows'] = $result->fetchAll();
+  }
+
+  $i = 0;
+  while ($row = array_pop($sandbox['rows'])) {
+    $node = node_load($row->nid);
+    switch ($row->sid) {
+      case GHEL_WORKFLOW_STATE_FEEDBACK:
+      case GHEL_WORKFLOW_STATE_UNDER_REVIEW:
+      case GHEL_WORKFLOW_STATE_ARCHIVED:
+        $node->group_content_access[LANGUAGE_NONE][0]['value'] = OG_CONTENT_ACCESS_PRIVATE;
+        node_save($node);
+        drupal_set_message(t('Updated node(!nid) added og content access field (private).', array('!nid' => $row->nid)));
+        break;
+      case GHEL_WORKFLOW_STATE_PUBLISHED:
+        $node->group_content_access[LANGUAGE_NONE][0]['value'] = OG_CONTENT_ACCESS_PUBLIC;
+        node_save($node);
+        drupal_set_message(t('Updated node(!nid) added og content access field (open).', array('!nid' => $row->nid)));
+        break;
+      default:
+        drupal_set_message(t('No course association for node(!nid) manual review required', array('!nid' => $row->nid)), 'warning');
+        break;
+    }
+    $sandbox['progress']++;
+
+    $i++;
+    // limit how many nodes are updated each iteration
+    if ($i >= GHEL_BASE_NODE_CAP) {
+      break;
+    }
+  }
+
+  $sandbox['#finished'] = empty($sandbox['max']) ? 1 : ($sandbox['progress'] / $sandbox['max']);
+  return t('Updated !total course nodes to ensure they have group content access fields.', array('!total' => $sandbox['max']));
+}
+
+/**
+ * Updates course content "Under Review" to ensure comments "Open"
+ */
+function ghel_base_update_7101(&$sandbox) {
+  $result = ghel_base_non_conforming_comments(GHEL_WORKFLOW_STATE_UNDER_REVIEW, COMMENT_NODE_OPEN);
+
+  // setup our batch details
+  if (!isset($sandbox['progress'])) {
+    $total = $result->rowCount();
+    $sandbox['progress'] = 0;
+    $sandbox['max'] = $total;
+  }
+
+  $i = 0;
+  while ($nid = $result->fetchColumn()) {
+    $node = node_load($nid);
+    $node->comment = COMMENT_NODE_OPEN;
+    node_save($node);
+    drupal_set_message(t('Updated node(!nid) opened comments.', array('!nid' => $nid)));
+    $sandbox['progress']++;
+
+    $i++;
+    // limit how many nodes are updated each iteration
+    if ($i >= GHEL_BASE_NODE_CAP) {
+      break;
+    }
+  }
+
+  $sandbox['#finished'] = empty($sandbox['max']) ? 1 : ($sandbox['progress'] / $sandbox['max']);
+  return t('Updated !total nodes in "Under Review" for proper comment settings.', array('!total' => $sandbox['max']));
+}
+
+/**
+ * Updates course content "Feedback" to ensure comments "Open"
+ */
+function ghel_base_update_7102(&$sandbox) {
+  $result = ghel_base_non_conforming_comments(GHEL_WORKFLOW_STATE_FEEDBACK, COMMENT_NODE_OPEN);
+
+  // setup our batch details
+  if (!isset($sandbox['progress'])) {
+    $total = $result->rowCount();
+    $sandbox['progress'] = 0;
+    $sandbox['max'] = $total;
+  }
+
+  $i = 0;
+  while ($nid = $result->fetchColumn()) {
+    $node = node_load($nid);
+    $node->comment = COMMENT_NODE_OPEN;
+    node_save($node);
+    drupal_set_message(t('Updated node(!nid) opened comments.', array('!nid' => $nid)));
+    $sandbox['progress']++;
+
+    $i++;
+    // limit how many nodes are updated each iteration
+    if ($i >= GHEL_BASE_NODE_CAP) {
+      break;
+    }
+  }
+
+  $sandbox['#finished'] = empty($sandbox['max']) ? 1 : ($sandbox['progress'] / $sandbox['max']);
+  return t('Updated !i nodes in "Feedback" for proper comment settings.', array('!total' => $sandbox['max']));
+}
+
+
+/**
+ * Updates course content "Published" to ensure comments "Hidden"
+ */
+function ghel_base_update_7103(&$sandbox) {
+  $result = ghel_base_non_conforming_comments(GHEL_WORKFLOW_STATE_PUBLISHED, COMMENT_NODE_HIDDEN);
+
+  // setup our batch details
+  if (!isset($sandbox['progress'])) {
+    $total = $result->rowCount();
+    $sandbox['progress'] = 0;
+    $sandbox['max'] = $total;
+  }
+
+  $i = 0;
+  while ($nid = $result->fetchColumn()) {
+    $node = node_load($nid);
+    $node->comment = COMMENT_NODE_HIDDEN;
+    node_save($node);
+    drupal_set_message(t('Updated node(!nid) hid comments.', array('!nid' => $nid)));
+    $sandbox['progress']++;
+
+    $i++;
+    // limit how many nodes are updated each iteration
+    if ($i >= GHEL_BASE_NODE_CAP) {
+      break;
+    }
+  }
+
+  $sandbox['#finished'] = empty($sandbox['max']) ? 1 : ($sandbox['progress'] / $sandbox['max']);
+  return t('Updated !total nodes in "Published" for proper comment settings.', array('!i' => $sandbox['max']));
+}
+
+/**
+ * Updates course content "Archived" to ensure comments "Closed"
+ */
+function ghel_base_update_7104(&$sandbox) {
+  $result = ghel_base_non_conforming_comments(GHEL_WORKFLOW_STATE_ARCHIVED, COMMENT_NODE_CLOSED);
+
+  // setup our batch details
+  if (!isset($sandbox['progress'])) {
+    $total = $result->rowCount();
+    $sandbox['progress'] = 0;
+    $sandbox['max'] = $total;
+  }
+
+  $i = 0;
+  while ($nid = $result->fetchColumn()) {
+    $node = node_load($nid);
+    $node->comment = COMMENT_NODE_CLOSED;
+    node_save($node);
+    drupal_set_message(t('Updated node(!nid) closed comments.', array('!nid' => $nid)));
+    $sandbox['progress']++;
+
+    $i++;
+    // limit how many nodes are updated each iteration
+    if ($i >= GHEL_BASE_NODE_CAP) {
+      break;
+    }
+  }
+
+  $sandbox['#finished'] = empty($sandbox['max']) ? 1 : ($sandbox['progress'] / $sandbox['max']);
+  return t('Updated !total nodes in "Archived" for proper comment settings.', array('!total' => $sandbox['max']));
+}

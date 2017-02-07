@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Spam feature.
+ */
+
+include_once 'ghel_spam.features.inc';

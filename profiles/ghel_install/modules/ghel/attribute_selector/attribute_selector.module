@@ -1,0 +1,272 @@
+<?php
+/**
+ * @file
+ * @todo clear messages on ajax request to avoid stale error message.
+ *   eg. hit submit with no candidates/incumbents selected and then
+ *       select a different attribute the form element errors are
+ *       cleared but a stale error message is still displayed
+ * @todo add necessary js to disable when appropriate:  add when no candidates
+ * or incumbents selected and trying to add or remove.
+ */
+
+
+/**
+ * Implements hook_element_info().
+ */
+function attribute_selector_element_info() {
+  return array(
+    'attribute_selector' => array(
+      '#input' => TRUE,
+      '#process' => array('attribute_selector_widget_process'),
+      '#theme' => array('attribute_selector_widget'),
+      '#element_validate' => array('attribute_selector_widget_validate'),
+      '#value_callback' => 'attribute_selector_value',
+    ),
+  );
+}
+
+/**
+ * Element processor function.
+ *
+ * This is NOT hook_process(). This is the worker that builds our input widget
+ * and ensures the proper housekeeping is in order.
+ */
+function attribute_selector_widget_process($element, &$form_state, $complete_form) {
+  drupal_add_css(drupal_get_path('module', 'attribute_selector') . '/attribute_selector.css');
+
+  $values = $form_state['values'][$element['#name']];
+
+  if (!empty($values) && !empty($values['attribute'])) {
+    $attribute = $values['attribute'];
+  }
+  else {
+    // If no selection is already made preselect the first attribute.
+    $keys = array_keys($element['#attribute']);
+    $attribute = current($keys);
+  }
+  // Set some defaults if they are not set yet. User supplied strings are ran
+  // through t() with the variable @attribute representing the currently
+  // selected attribute.
+  $subtitles = array(
+    '#candidates' => t('Candidates'),
+    '#attribute'  => t('Attribute'),
+    '#incumbents' => t('@attribute', array('@attribute' => $element['#attribute'][$attribute])),
+    '#add'        => t('Add Attribute ⇒'),
+    '#remove'     => t('⇐ Remove Attribute'),
+  );
+
+  // Use the default, or if provided, pass to t() with the current selected
+  // attribute.
+  foreach ($subtitles as $key => $value) {
+    if (empty($element['#sub-title'][$key])) {
+      $element['#sub-title'][$key] = $value;
+    }
+    else {
+      $element['#sub-title'][$key] = t($element['#sub-title'][$key], array('@attribute' => $element['#attribute'][$attribute]));
+    }
+  }
+
+  if (empty($element['#size'])) {
+    $element['#size'] = 20;
+  }
+
+  $element['#value_callback'] = 'attribute_selector_value';
+  $element['#tree'] = TRUE;
+
+  // Set the candidates and incumbents array via the respective callbacks or an
+  // empty array().
+  // @todo determine if we should fail when no valid callbacks are available.
+  if (function_exists($element['#callbacks']['#candidates'])) {
+    $function = $element['#callbacks']['#candidates'];
+    $candidates = $function($attribute, $element, $form_state);
+  }
+  else {
+    $candidates = array();
+  }
+
+  if (function_exists($element['#callbacks']['#incumbents'])) {
+    $function = $element['#callbacks']['#incumbents'];
+    $incumbents = $function($attribute, $element, $form_state);
+  }
+  else {
+    $incumbents = array();
+  }
+
+  $element['sub-elements']['candidates'] = array(
+    '#type' => 'select',
+    '#size' => $element['#size'],
+    '#multiple' => TRUE,
+    '#default_value' => empty($element['#value']['candidates']) ? array() : array_combine($element['#value']['candidates'], $element['#value']['candidates']),
+    '#options' => $candidates,
+    '#title' => $element['#sub-title']['#candidates'],
+  );
+
+  // Add a count of how many candidates are incumbents for the given attribute.
+  if (!empty($element['#callbacks']['#incumbents']) && !empty($element['#attribute']) && empty($element['#attribute-counted'])) {
+    $function = $element['#callbacks']['#incumbents'];
+    foreach ($element['#attribute'] as $key => $value) {
+      $sum = $function($key, $element, $form_state);
+      $element['#attribute-counted'][$key] = t('!attribute (!count)', array(
+        '!attribute' => $value,
+        '!count' => count($sum),
+      ));
+    }
+  }
+
+  $element['sub-elements']['attribute'] = array(
+    '#type' => 'select',
+    '#tree' => TRUE,
+    '#multiple' => FALSE,
+    '#default_value' => $attribute,
+    '#options' => $element['#attribute-counted'],
+    '#title' => $element['#sub-title']['#attribute'],
+    '#required' => TRUE,
+    '#ajax' => array(
+      'event' => 'change',
+      'method' => 'replace',
+      'wrapper' => $element['#id'],
+      'callback' => 'attribute_selector_widget_js',
+    ),
+    '#default_value' => $attribute,
+    // Used to track our parent element.
+    '#elementname' => $element['#name'],
+  );
+
+  $element['sub-elements']['incumbents'] = array(
+    '#type' => 'select',
+    '#size' => $element['#size'],
+    '#multiple' => TRUE,
+    '#default_value' => empty($element['#value']['incumbents']) ? array() : $element['#value']['incumbents'],
+    '#options' => $incumbents,
+    '#title' => $element['#sub-title']['#incumbents'],
+  );
+
+  $element['sub-elements']['buttons'] = array(
+    '#prefix' => '<div class="attribute-selector-buttons">',
+    '#suffix' => '</div>',
+    'add' => array(
+      '#type' => 'submit',
+      '#value' => empty($element['#sub-title']['#add']) ? t('Add Attribute') : t($element['#sub-title']['#add'], array('@attribute' => $element['#attribute'][$attribute])),
+      '#submit' => array($element['#callbacks']['#add']),
+      // Used to track our parent element.
+      '#elementname' => $element['#name'],
+    ),
+    'remove' => array(
+      '#type' => 'submit',
+      '#value' => empty($element['#sub-title']['#remove']) ? t('Remove Attribute') : t($element['#sub-title']['#remove'], array('@attribute' => $element['#attribute'][$attribute])),
+      '#submit' => array($element['#callbacks']['#remove']),
+      // Used to track our parent element.
+      '#elementname' => $element['#name'],
+    ),
+  );
+  return $element;
+}
+
+/**
+ * AJAX callback for replacing form widgets.
+ */
+function attribute_selector_widget_js($form, $form_state) {
+  // @todo we also need to clear the messages div as it can provide stale data
+  if (!empty($form_state['triggering_element']['#elementname'])) {
+    return $form[$form_state['triggering_element']['#elementname']];
+  }
+}
+
+/**
+ * Form validation routine.
+ */
+function attribute_selector_widget_validate($element, &$form_state) {
+  $values = $form_state['values'][$element['#name']]['sub-elements'];
+  if ($values['buttons']['add'] == $form_state['triggering_element']['#value']) {
+    if (empty($values['candidates'])) {
+      form_set_error($element['#name'] . '][candidates', t('You must select at least one candidate to add.'));
+    }
+  }
+  elseif ($values['buttons']['remove'] == $form_state['triggering_element']['#value']) {
+    if (empty($values['incumbents'])) {
+      form_set_error($element['#name'] . '][incumbents', t('You must select at least one incumbent to remove.'));
+    }
+  }
+}
+
+/**
+ * Implements of hook_theme().
+ */
+function attribute_selector_theme() {
+  return array(
+    'attribute_selector_widget' => array(
+      'render element' => 'element',
+    ),
+  );
+}
+
+/**
+ * Theme function for our render widget.
+ *
+ * @todo rework this so that we can still call theme_form_element as our theme
+ *       wrapper. Requires adjusting our js callback.
+ */
+function theme_attribute_selector_widget($variables) {
+  $element = $variables['element'];
+
+  $element += array(
+    '#title_display' => 'before',
+  );
+
+  $element['#attributes']['type'] = 'attribute-selector';
+  element_set_attributes($element, array('id', 'name'));
+  _form_set_class($element, array('form-attribute-selector'));
+
+  $output = '<div' . drupal_attributes($element['#attributes']) . '>';
+
+  $widgets = '<div class="attribute-selector-candidates">';
+  $widgets .= drupal_render($element['sub-elements']['candidates']);
+  $widgets .= '</div>';
+
+  $widgets .= '<div class="attribute-selector-middle">';
+  $widgets .= '<div class="attribute-selector-attribute">';
+  $widgets .= drupal_render($element['sub-elements']['attribute']);
+  $widgets .= '</div>';
+  $widgets .= drupal_render($element['sub-elements']['buttons']);
+  $widgets .= '</div>';
+  $widgets .= '<div class="attribute-selector-incumbents">';
+  $widgets .= drupal_render($element['sub-elements']['incumbents']);
+  $widgets .= '</div>';
+
+  switch ($element['#title_display']) {
+    case 'before':
+    case 'invisible':
+      $output .= theme('form_element_label', $variables);
+      $output .= ' ' . $widgets . "\n";
+      break;
+
+    case 'after':
+      $output .= ' ' . $widgets . "\n";
+      $output .= theme('form_element_label', $variables);
+      break;
+
+    case 'none':
+    case 'attribute':
+      // Output no label and no required marker.
+      $output .= ' ' . $widgets . "\n";
+      break;
+
+  }
+
+  if (!empty($element['#description'])) {
+    $output .= '<div class="description">' . $element['#description'] . "</div>\n";
+  }
+
+  $output .= '</div>';
+
+  return $output;
+}
+
+/**
+ * Value callback for our widget type.
+ * @return array
+ *   The element values. In this case we return the values of the sub-elements.
+ */
+function attribute_selector_value($element, $input, $form_state) {
+  return $input['sub-elements'];
+}

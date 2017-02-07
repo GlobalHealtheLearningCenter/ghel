@@ -1,0 +1,41 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Dashboard feature.
+ */
+
+include_once 'ghel_dashboard.features.inc';
+
+/**
+ * Implements hook_block_info().
+ */
+function ghel_dashboard_block_info() {
+  $blocks['link'] = array(
+    'info' => t('Dashboard Link'),
+    'cache' => DRUPAL_CACHE_PER_ROLE,
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function ghel_dashboard_block_view($delta = '') {
+  $block = array();
+
+  switch ($delta) {
+    case 'link':
+      $block['subject'] = NULL;
+      $block['content'] = l(
+        t('Dashboard'),
+        'dashboard',
+        array(
+          'attributes' => array(
+            'class' => array('dashboard-link'),
+          ),
+        )
+      );
+      break;
+  }
+  return $block;
+}

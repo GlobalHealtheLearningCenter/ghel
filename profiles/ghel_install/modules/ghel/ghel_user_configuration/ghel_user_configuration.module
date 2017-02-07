@@ -1,0 +1,71 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL User Configuration feature.
+ */
+
+include_once 'ghel_user_configuration.features.inc';
+
+/**
+ * Implements hook_form_alter().
+ */
+function ghel_user_configuration_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'user_register_form' || $form_id == 'user_profile_form') {
+
+    $roles = user_roles();
+    $flipped = array_flip($roles);
+    // auto-assign all users into the 'learner' role.
+    if (empty($form['account']['roles']['#default_value'])) {
+      $form['account']['roles']['#default_value'] = array($flipped['learner']);
+    }
+
+    // Should only be active if country = US and occupation category = USAID
+    $form['field_ghel_usaid_category']['#states'] =
+    array(
+      'visible' => array(
+        ':input[name="field_ghel_user_location[und]"]' => array('value' => '840'),
+        ':input[name="field_ghel_organization_category[und]"]' => array('value' => '22'),
+      ),
+    );
+
+    // We need to make sure they select a USAID category if necessary.
+    $form['#validate'][] = 'ghel_user_registration_form_validate';
+  }
+  if ($form_id == 'user_profile_form') {
+    $form['#validate'][] = 'ghel_user_configuration_form_validate';
+  }
+  if ($form_id == 'user_login') {
+    if (empty($_GET['destination'])) {
+      // No specific destination is set, add our custom submit handler to
+      // redirect to homepage.
+      $form['#submit'][] = 'ghel_user_configuration_login_submit';
+    }
+  }
+}
+
+function ghel_user_registration_form_validate(&$form, &$form_state) {
+  // Short-hand variables.
+  $org_category = $form_state['values']['field_ghel_organization_category']['und'][0]['tid'];
+  $user_location = $form_state['values']['field_ghel_user_location']['und'][0]['value'];
+  $usaid_category = $form_state['values']['field_ghel_usaid_category']['und'][0]['value'];
+
+  if ($org_category == 22 && $user_location == 840 && (empty($usaid_category) || $usaid_category == '_none')) {
+    form_set_error('field_ghel_usaid_category', t('You must select a USAID category'));
+  }
+}
+
+function ghel_user_configuration_form_validate(&$form, &$form_state) {
+  $roles = user_roles();
+  $flipped = array_flip($roles);
+  $selected = $form_state['values']['roles'];
+  if (!empty($selected[$flipped['learner']]) && !empty($selected[$flipped['staff']])) {
+    form_set_error('roles', t('Users may not have both the "staff" and "learner" roles.'));
+  }
+}
+
+/**
+ * Custom submit handler to redirect user to the homepage.
+ */
+function ghel_user_configuration_login_submit(&$form, &$form_state) {
+  $form_state['redirect'] = '<front>';
+}

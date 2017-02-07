@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the gHeL Testimonial feature.
+ */
+
+include_once 'ghel_testimonial.features.inc';

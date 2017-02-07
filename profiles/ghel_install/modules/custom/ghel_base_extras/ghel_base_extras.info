@@ -1,0 +1,7 @@
+name = "GHeL Base Extras"
+description = Additions to GHeL Base feature.
+core = 7.x
+package = GHeL
+dependencies[] = uuid
+dependencies[] = menu
+

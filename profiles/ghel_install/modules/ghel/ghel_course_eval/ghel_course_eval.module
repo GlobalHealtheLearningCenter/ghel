@@ -1,0 +1,54 @@
+<?php
+/**
+ * @file
+ * Code for the Course eval feature.
+ */
+
+include_once 'ghel_course_eval.features.inc';
+
+/**
+ * Returns a link to the course evaluation form for the given user.
+ */
+function ghel_course_eval_print_link($coursenid, $account = NULL) {
+  if ($account == NULL) {
+    global $user;
+    $account = $user;
+  }
+
+  $entity_uuid = entity_uuid_load('node', array('776ad709-00e9-4426-8f3f-4aa7cedf2423'));
+  $webform = reset($entity_uuid);
+  if (!empty($webform)) {
+    $course = node_load($coursenid);
+    $cid = db_select('webform_component', 'c')
+      ->condition('nid', $webform->nid)
+      ->condition('form_key', 'courseid')
+      ->fields('c', array('cid'))
+      ->execute()
+      ->fetchField();
+
+    $query = db_select('webform_submissions', 's');
+    $query->leftJoin('webform_submitted_data', 'd', 'd.sid = s.sid');
+    $complete = $query->fields('d', array('data'))
+      ->condition('s.uid', $account->uid)
+      ->condition('d.cid', $cid)
+      ->condition('d.data', $coursenid)
+      ->execute()
+      ->fetchField();
+
+    if (empty($complete)) {
+      $path = 'node/' . $webform->nid;
+      $options = array(
+        'query' => array(
+          'name' => $course->title,
+          'id' => $course->nid,
+        ),
+      );
+      return l(t('Course Evaluation'), $path, $options);
+    }
+    else {
+      return t('Already Complete');
+    }
+
+  }
+  return '';
+}

@@ -1,0 +1,4 @@
+name = NodeID in Lingotek Title
+description = Lingotek Helper Module: Prefixes the Node ID to the Node Name for the Lingotek Document Title
+core = 7.x
+package = Other

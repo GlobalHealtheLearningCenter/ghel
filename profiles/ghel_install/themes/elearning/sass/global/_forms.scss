@@ -1,0 +1,252 @@
+//  Global
+// ---------------------
+
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  @include box-shadow(0 0 5px $gray);
+}
+
+.form-item {
+  margin: 0 0 1em 0;
+}
+
+//  Labels
+// ---------------------
+
+label,
+fieldset-legend {
+  @include adjust-font-size-to(12px);
+  font-weight: 600;
+  margin-bottom: rhythm(1, 12px);
+}
+
+#user-register-form label.option {
+  font-weight: 600;
+}
+
+.form-required {
+  color: $red;
+  font-weight: bold;
+}
+
+//  Form Fields
+// ---------------------
+
+textarea,
+select,
+input[type="date"],
+input[type="datetime"],
+input[type="datetime-local"],
+input[type="email"],
+input[type="month"],
+input[type="number"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="text"],
+input[type="time"],
+input[type="url"],
+input[type="week"] {
+  @include border-radius(3px);
+  @include box-sizing(border-box);
+  padding: 2px;
+  margin-bottom: rhythm(1);
+  max-width: 100%;
+  background-color: $white;
+  border: 1px $gray solid;
+  color: $gray-darker;
+  &:focus {
+    border-color: $gray;
+  }
+}
+
+.form-type-radio {
+  // push it over so it's not cut off by its container.
+  margin-left: 2px;
+}
+
+// Fieldsets
+// ---------
+
+fieldset > .fieldset-wrapper {
+  padding: rhythm(2) $w-gutter-half;
+}
+
+// Views exposed filters
+// ---------------------
+
+.views-exposed-form {
+  background-color: $blue-white;
+  padding: rhythm(1) $w-gutter-half;
+}
+
+.views-exposed-widget {
+  .form-autocomplete {
+    max-width: 18.571428571em; // 260px
+  }
+}
+
+.views-submit-button > .form-submit {
+  @extend .button-primary;
+}
+
+.views-submit-button {
+  clear: left;
+}
+
+.view-ghel-courses {
+  .views-submit-button {
+    @include breakpoint($mobile, $no-query: '.lt-ie9') {
+      clear: none;
+    }
+  }
+
+  .views-exposed-widget {
+    @include breakpoint($tablet-wide, $no-query: '.lt-ie9') {
+      @include inline-block;
+      margin-right: $w-gutter-half;
+      float: left;
+    }
+  }
+
+  .views-exposed-form {
+    @include breakpoint($tablet, $no-query: '.lt-ie9') {
+      .views-exposed-widget,
+      .views-widget,
+      label {
+        @include inline-block;
+        margin-right: $w-gutter-half;
+      }
+
+      select {
+        position: relative;
+        top: 2px;
+      }
+    }
+  }
+}
+
+.views-submit-button,
+.views-reset-button {
+  @include inline-block;
+
+  @include breakpoint($tablet, $no-query: '.lt-ie9') {
+    position: relative;
+    top: 0px;
+    margin-right: $w-gutter-half;
+  }
+
+  @include breakpoint($tablet-wide, $no-query: '.lt-ie9') {
+    top: 0;
+  }
+}
+
+#edit-select {
+  .form-submit {
+    @extend .button-secondary;
+  }
+}
+
+%form-layout-inline {
+  @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+    .form-item,
+    .form-actions
+     {
+      @include clearfix;
+      padding-left: 150px + $w-gutter;
+      margin-bottom: rhythm(3);
+    }
+
+    .form-item  > label {
+      float: left;
+      width: 228px;
+      margin-left: -1 * (138px + $w-gutter);
+      text-align: right;
+      margin-right: 2em;
+    }
+
+    .form-radios > .form-item {
+      @include inline-block;
+      padding-left: 0;
+      margin-top: 0;
+
+      > label {
+        display: inline !important;
+        float: none;
+        margin: 0 $w-gutter 0 0;
+        width: auto;
+      }
+
+      > .form-radio {
+        display: inline;
+        margin: 0 2px;
+      }
+    }
+  }
+}
+
+#user-register-form,
+#user-login,
+#user-pass,
+#contact-site-form {
+  @extend %form-layout-inline;
+}
+
+#user-register-form {
+  .form-item.form-type-password {
+    padding-left: 0;
+    overflow: visible;
+    .password-strength-title, .password-confirm, .password-strength-text {
+      @include adjust-font-size-to(12px);
+    }
+  }
+  .form-item.form-type-password-confirm {
+    .description {
+      margin-top: -15px;
+      margin-bottom: rhythm(3);
+    }
+  }
+  .form-type-textfield .description,
+  .form-type-password-confirm .description,
+  .form-type-checkbox .description {
+      margin-left: 7.5em;
+  }
+  div.password-confirm {
+    margin-left: 7.4em;
+  }
+}
+
+.password-strength {
+  width: 170px;
+  margin-left: 6.4em;
+}
+.password-strength-title {
+  display: inline-block;
+    width: 115px;
+}
+.password-strength-text {
+  float: right;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.login-forgot {
+  margin-right: 390px;
+  margin-top: 1.8em;
+  float: right;
+}
+
+#user-login input[name="openid.return_to"] + .item-list {
+  margin-left: 18em !important;
+}
+
+
+html.js input.form-autocomplete {
+  background-position: 100% 6px;
+}
+
+html.js input.throbbing {
+  background-position: 100% -14px;
+}

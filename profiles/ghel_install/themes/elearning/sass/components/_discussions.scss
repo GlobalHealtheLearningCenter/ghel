@@ -1,0 +1,111 @@
+.node-type-ghel-discussion {
+  @extend %submitted;
+
+  .field-ghel-post-in {
+    @extend %affiliation;
+  }
+
+  .field-ghel-comm-binary {
+    padding-bottom: rhythm(2);
+
+    .field-label {
+      margin-bottom: rhythm(1);
+    }
+
+    .file a {
+      @extend %button;
+      @extend %button-medium;
+      @extend %button-white;
+    }
+
+    .file-icon {
+      vertical-align: bottom;
+    }
+  }
+}
+
+
+//discussions
+.node-ghel_discussion-form{
+    @extend .clearfix;
+    .group_main_discussion{
+        width:80%;
+        float: left;
+
+    }
+    .form-wrapper#edit-actions{
+        float: left;
+        width: 20%;
+
+        #edit-submit,
+        #edit-preview{
+            width: 100%;
+            padding: 13px;
+            font-size: 17px;
+            background: $link-color;
+            color: #fff;
+            &:hover{
+                background:$link-color-hover;
+            }
+        }
+        #edit-preview{
+            background:#ddd;
+            &:hover{
+                background:#e0e0e0;
+            }
+        }
+    }
+}
+
+
+.node-ghel-resource,
+.node-ghel-discussion{
+    .content{
+        @extend .clearfix;
+        .field.body{
+            max-width: 800px;
+        }
+    }
+    .group-main-discussion{
+        border:none;
+        padding: 0;
+        float:left;
+        width:70%;
+        margin-right:1%;
+        box-sizing: border-box;
+        .fieldset-wrapper{
+            padding:0;
+        }
+    }
+    .field-ghel-er-partof,
+    .field-ghel-post-in{
+        box-sizing: border-box;
+        margin: 0 0 10px;
+        padding: 0 0 10px;
+        float:left;
+        width:29%;
+        background: #E2ECF0;
+        padding: 20px;
+        .field-label{
+            font-weight: 400;
+            margin: 0;
+            padding: 0;
+            text-transform:uppercase;
+            display: block;
+            font-size: 20px;
+            color: $secondary;
+        }
+    }
+}
+
+
+
+@media(max-width:767px){
+    .node-ghel_discussion-form{
+        .group_main_discussion,
+        .form-wrapper#edit-actions{
+            float: none;
+            width: 100%;
+        }
+    }
+}

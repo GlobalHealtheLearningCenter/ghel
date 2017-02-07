@@ -1,0 +1,6 @@
+name = GHeL Table of contents widget
+description = Provides blocks and custom display formatter for entity reference widgets.
+core = 7.x
+package = GHeL Custom Code
+dependencies[] = entityreference
+scripts[] = ghel_toc_widget.js

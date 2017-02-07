@@ -1,0 +1,12 @@
+// Inline .links list at the bottom of nodes
+
+.block-content .node > .links {
+	@include horizontal-list;
+  padding-top: rhythm(1);
+
+  .nav-link {
+    @extend %button;
+    @extend %button-large;
+    @extend %button-blue;
+  }
+}

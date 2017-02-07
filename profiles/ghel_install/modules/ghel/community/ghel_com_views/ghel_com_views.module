@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Community Views feature.
+ */
+
+include_once 'ghel_com_views.features.inc';

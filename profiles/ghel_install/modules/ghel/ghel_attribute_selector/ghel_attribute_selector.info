@@ -1,0 +1,8 @@
+name = GHeL Attribute selector integration
+description = Provides alternate for managing course authors.
+core = 7.x
+package = GHeL Custom Code
+version = 7.x-1.0-dev
+
+dependencies[] = attribute_selector
+dependencies[] = ghel_course

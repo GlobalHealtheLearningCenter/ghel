@@ -1,0 +1,294 @@
+<?php
+
+function ghel_achievements_schema() {
+  return _ghel_achievements_get_schema();
+}
+
+/**
+ * Helper function to update one achievement_id.
+ *
+ * @param string $achievement_id
+ *   Old format achievement id string.
+ */
+function ghel_achievements_update_achivement_id($achievement_id) {
+  $parts = explode('-', $achievement_id);
+  $nid = end($parts);
+  $new = '';
+  if (strpos($achievement_id, 'ghel-course-start') === 0) {
+    $new = 'g-c-start-' . $nid . '-0';
+  }
+  elseif (strpos($achievement_id, 'ghel-final-quiz') === 0) {
+    $new = 'g-f-quiz-' . $nid . '-0';
+  }
+  elseif (strpos($achievement_id, 'ghel-course-completion') === 0) {
+    $new = 'g-c-completion-' . $nid . '-0';
+  }
+  elseif (strpos($achievement_id, 'ghel-action-plan') === 0) {
+    $new = 'g-a-plan-' . $nid . '-0';
+  }
+  elseif (strpos($achievement_id, 'ghel-program-completion') === 0) {
+    $new = 'g-p-completion-' . $nid . '-0';
+  }
+  if (!empty($new)) {
+
+    db_update('achievement_totals')
+      ->fields(array(
+        'achievement_id' => $new,
+      ))
+      ->condition('achievement_id', $achievement_id)
+      ->execute();
+
+    // get all users with new certificates corresponding to this old one.
+    $result = db_query('SELECT uid
+      FROM {achievement_unlocks}
+      WHERE achievement_id = :achievement_id',
+      array(':achievement_id' => $new));
+    $users = $result->fetchAllKeyed(0,0);
+
+    // Get all of the corresponding old certificates.
+    $old_certs = db_query('SELECT uid
+      FROM {achievement_unlocks}
+      WHERE achievement_id = :achievement_id',
+      array(':achievement_id' => $achievement_id));
+
+    // Now iterate over each user with an old certificate and update it if the
+    // user does not already have a new certificate.
+    if (!empty($old_certs)) {
+      while ($uid = $old_certs->fetchColumn(0)) {
+        if (!in_array($uid, $users)) {
+          db_update('achievement_unlocks')
+            ->fields(array(
+              'achievement_id' => $new,
+            ))
+            ->condition('achievement_id', $achievement_id)
+            ->condition('uid', $uid)
+            ->execute();
+        }
+        else {
+          // We need to remove this stale achievement.
+          db_delete('achievement_unlocks')
+            ->condition('achievement_id', $achievement_id)
+            ->condition('uid', $uid)
+            ->execute();
+          watchdog('ghel_achievements', 'Removing stale achievement !old for !uid because new achievement "!new" already exists', array(
+            '!old' => $achievement_id,
+            '!uid' => $uid,
+            '!new' => $new,
+          ), WATCHDOG_INFO);
+        }
+      }
+    }
+
+
+  }
+  else {
+    watchdog('ghel_achievements', 'Could not map achievement_id !id', array('!id' => $row->achievement_id), WATCHDOG_NOTICE);
+  }
+}
+
+/**
+ * Update to new certificate & achievement formatting.
+ */
+function ghel_achievements_update_7100(&$sandbox) {
+  // Initiliaze the batch if we haven't already.
+  if (empty($sandbox['remaining'])) {
+    $where_condition = "
+      achievement_id LIKE 'ghel-course-start%' OR
+      achievement_id LIKE 'ghel-course-completion%' OR
+      achievement_id LIKE 'ghel-action-plan%' OR
+      achievement_id LIKE 'ghel-final-quiz%' " ;
+    $sql = 'SELECT DISTINCT achievement_id FROM
+    (
+      SELECT DISTINCT achievement_id FROM {achievement_totals}
+      WHERE ' . $where_condition . '
+    UNION
+      SELECT DISTINCT achievement_id FROM {achievement_unlocks}
+      WHERE ' . $where_condition . '
+    ) as union_query ORDER BY achievement_id';
+
+    $achievements = db_query($sql);
+    foreach ($achievements as $a) {
+      $sandbox['remaining'][] = $a->achievement_id;
+    }
+    $sandbox['progress'] = 0;
+    $sandbox['total'] = count($sandbox['remaining']);
+  }
+
+  $i = 1;
+  while ($i <= 5 && count($sandbox['remaining'] >= 1)) {
+    ghel_achievements_update_achivement_id(array_pop($sandbox['remaining']));
+    $sandbox['progress']++;
+    $i++;
+  }
+
+  $sandbox['#finished'] = empty($sandbox['total']) ? 1 : ((int)$sandbox['progress'] / (int)$sandbox['total']);
+
+  return t('Updated achievements to new achievement format versioning format');
+}
+
+/**
+ * Update to new program certificate & achievement formatting.
+ */
+function ghel_achievements_update_7101(&$sandbox) {
+    // Initiliaze the batch if we haven't already.
+  if (empty($sandbox['remaining'])) {
+    $where_condition = "achievement_id LIKE 'ghel-program-completion%'" ;
+    $sql = 'SELECT DISTINCT achievement_id FROM
+    (
+      SELECT DISTINCT achievement_id FROM {achievement_totals}
+      WHERE ' . $where_condition . '
+    UNION
+      SELECT DISTINCT achievement_id FROM {achievement_unlocks}
+      WHERE ' . $where_condition . '
+    ) as union_query ORDER BY achievement_id';
+
+    $achievements = db_query($sql);
+    foreach ($achievements as $a) {
+      $sandbox['remaining'][] = $a->achievement_id;
+    }
+    $sandbox['progress'] = 0;
+    $sandbox['total'] = count($sandbox['remaining']);
+  }
+
+  $i = 1;
+  while ($i <= 5 && count($sandbox['remaining'] >= 1)) {
+    ghel_achievements_update_achivement_id(array_pop($sandbox['remaining']));
+    $sandbox['progress']++;
+    $i++;
+  }
+
+  $sandbox['#finished'] = empty($sandbox['total']) ? 1 : ((int)$sandbox['progress'] / (int)$sandbox['total']);
+
+  return t('Updated achievements to new achievement format versioning format');
+}
+
+/**
+ * Ensure the revision table is populated with revision values.
+ */
+function ghel_achievements_update_7102(&$sandbox) {
+  // Initialize the batch if we haven't already
+  if (empty($sandbox['remaining'])) {
+    $sql = 'SELECT nid, vid
+      FROM {node}
+      WHERE type = :type AND nid NOT IN (
+        SELECT entity_id FROM {field_data_field_ghel_revision}
+        WHERE entity_type = :etype AND bundle = :type
+      )';
+    $args = array(
+      ':type' => 'ghel_course',
+      ':etype' => 'node',
+    );
+    $courses = db_query($sql, $args);
+
+    foreach ($courses as $c) {
+      if (!empty($c->nid)) {
+        $sandbox['remaining'][] = array(
+          'vid' => $c->vid,
+          'nid' => $c->nid,
+        );
+      }
+    }
+    $sandbox['progress'] = 0;
+    $sandbox['total'] = count($sandbox['remaining']);
+  }
+
+  $i = 1;
+  if (is_array($sandbox['remaining'])) {
+    while ($i <= 5 && count($sandbox['remaining'] >= 1)) {
+      $current = array_pop($sandbox['remaining']);
+      if (!empty($current['nid'])) {
+        $fields = array(
+          'entity_type' => 'node',
+          'bundle' => 'ghel_course',
+          'deleted' => 0,
+          'entity_id' => $current['nid'],
+          'revision_id' => $current['vid'],
+          'language' => 'und',
+          'delta' => 0,
+          'field_ghel_revision_value' => 0,
+        );
+
+        db_insert('field_data_field_ghel_revision')
+          ->fields($fields)
+          ->execute();
+        $sandbox['progress']++;
+        $i++;
+      }
+    }
+  }
+
+  $sandbox['#finished'] = empty($sandbox['total']) ? 1 : ((int)$sandbox['progress'] / (int)$sandbox['total']);
+
+  return t('Populated revision table with course revision.');
+}
+
+/**
+ * Remove deprecated action assignment that removes program achievements.
+ */
+function ghel_achievements_update_7103(&$sandbox) {
+  db_delete('trigger_assignments')
+    ->condition('aid', 'ghel_actions_remove_program_achievements')
+    ->execute();
+  drupal_static_reset('trigger_get_assigned_actions');
+  return t('Removed trigger assignment for revoking program achievemetns.');
+}
+
+/**
+ * Remove deprecated action-plan achievements for all users.
+ */
+function ghel_achievements_update_7104(&$sandbox) {
+// select count(*) from achievement_unlocks where achievement_id LIKE 'g-a-plan-%';
+  db_delete('achievement_unlocks')
+    ->condition('achievement_id', 'g-a-plan-%', 'LIKE')
+    ->execute();
+  return t('Removed deprecated g-a-plan-* (action_plan) achievements from achievement_unlocks table.');
+}
+
+function ghel_achievements_update_7105(&$sandbox) {
+  if(db_table_exists('ghel_achievements_log')) {
+    db_drop_table('ghel_achievements_log');
+  }
+
+  $schema = _ghel_achievements_get_schema();
+  db_create_table('ghel_achievements_stack', $schema['ghel_achievements_stack']);
+}
+
+function _ghel_achievements_get_schema() {
+  $schema['ghel_achievements_stack'] = array(
+    'description' =>
+      'When course is undergoing revision, "push" info on users who had completed course and related program. ' . 
+      '"Pop" information from stack when course is republished.',
+    'fields' => array(
+      'uid' => array(
+        'default'       => 0,
+        'description'   => 'The {users}.uid that completed the course.',
+        'not null'      => TRUE,
+        'type'          => 'int',
+      ),
+      'course' => array(
+        'default'       => 0,
+        'description'   => 'The nid of the course which the user completed.',
+        'not null'      => TRUE,
+        'type'          => 'int',
+      ),
+      'program' => array(
+        'default'       => 0,
+        'description'   => 'The nid of the program which the user completed. Null if user did not complete program.',
+        'not null'      => FALSE,
+        'type'          => 'int',
+      ),
+    ),
+    'foreign keys' => array(
+      'user' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+    ),
+    'indexes' => array(
+      'uid' => array('uid'),
+      'course' => array('course'),
+    ),
+  );
+
+  return $schema;
+}

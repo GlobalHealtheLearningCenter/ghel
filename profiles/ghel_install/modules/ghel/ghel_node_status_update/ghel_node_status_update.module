@@ -1,0 +1,58 @@
+<?
+/*
+* @file
+*  Simple process to unpublish all nodes
+*  where workflow status != published (sid 9)  AND node published status is true
+*  and node type is ghel_course.
+*  Changes in ghel_workflow will include node status as part of transition in future.
+*/
+
+function ghel_node_status_update_menu() {
+
+  $items['admin/ghel_node_update'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ghel_node_update'),
+    'access arguments' => array('access administration pages'),
+  );
+  return $items;
+}
+
+function ghel_node_update($form_state, &$form_state){
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Unpublish GheL Nodes'),
+  );
+  return $form;
+}
+/*
+ * Query and update nodes to unpublish
+ */
+function ghel_node_update_submit($form, &$form_state) {
+
+  $select = db_select('node', 'n');
+  $select->fields('n', array('nid'));
+  $select->innerjoin('workflow_node','wn','wn.nid = n.nid');
+  $select->innerjoin('workflow_states','ws','ws.sid = wn.sid');
+  $select->condition('n.status', 1, '=');
+  $select->condition('n.type', 'ghel_course', '=');
+  $select->condition('ws.sid', 9, '!=');
+
+  try{
+    $result = $select->execute();
+  }
+  catch (Exception $e) {
+    watchdog_exception('type', $e);
+  }
+
+  foreach ($result as $record) {
+
+    $ghel_node = node_load($record->nid);
+    $ghel_node->status = NODE_UNPUBLISHED;
+    node_save($ghel_node);
+    drupal_set_message( l($ghel_node->title, '/node/' . $ghel_node->nid) . ' Successfully Unpublished');
+
+  }
+
+}
+?>

@@ -1,0 +1,15 @@
+name = Course eval
+description = The course evaluation form
+core = 7.x
+package = GHeL
+version = 7.x-0.1
+project = ghel_course_eval
+dependencies[] = ghel_contact
+dependencies[] = ghel_testimonial
+dependencies[] = uuid_features
+__drupal_alter_by_ref[][node][webform] = webform
+features[ctools][] = strongarm:strongarm:1
+features[features_api][] = api:2
+features[field_instance][] = node-webform-body
+features[field_instance][] = node-webform-title_field
+features[uuid_node][] = 776ad709-00e9-4426-8f3f-4aa7cedf2423

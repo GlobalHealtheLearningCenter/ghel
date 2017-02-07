@@ -1,0 +1,252 @@
+<?php
+/**
+ * @file
+ * Base installation setup for GHeL.
+ */
+
+/**
+ * Implements hook_install().
+ *
+ * Perform actions to set up the site for this profile.
+ */
+function ghel_install_install() {
+  variable_set('theme_default', 'elearning');
+
+  // Configure some standard blocks.
+  ghel_install_blocks();
+
+  // Configure media fields.
+  ghel_install_media_field_config();
+
+  // Configure navigational elements.
+  ghel_install_nav_config();
+
+  // Update the menu router information.
+  menu_rebuild();
+
+  // Configure theme settings.
+  ghel_install_config_theme();
+
+  // Configure user settings.
+  ghel_install_user_roles();
+}
+
+/**
+ * Configure a few basic blocks.
+ */
+function ghel_install_blocks($admin_theme = 'seven') {
+  // Enable some standard blocks.
+  $default_theme = variable_get('theme_default', 'bartik');
+
+  // Clean out any previous entries, in case a sub install profile calls this.
+  db_delete('block')->condition('theme', $default_theme)->execute();
+  db_delete('block')->condition('theme', $admin_theme)->execute();
+
+  $values = array(
+    array(
+      'module' => 'system',
+      'delta' => 'main',
+      'theme' => $default_theme,
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'content',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'user',
+      'delta' => 'login',
+      'theme' => $default_theme,
+      'status' => 0,
+      'weight' => 0,
+      'region' => 'sidebar_first',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'system',
+      'delta' => 'navigation',
+      'theme' => $default_theme,
+      'status' => 0,
+      'weight' => 0,
+      'region' => 'sidebar_first',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'system',
+      'delta' => 'powered-by',
+      'theme' => $default_theme,
+      'status' => 0,
+      'weight' => 10,
+      'region' => 'footer',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'system',
+      'delta' => 'help',
+      'theme' => $default_theme,
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'help',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'system',
+      'delta' => 'main',
+      'theme' => $admin_theme,
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'content',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'system',
+      'delta' => 'help',
+      'theme' => $admin_theme,
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'help',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'user',
+      'delta' => 'login',
+      'theme' => $admin_theme,
+      'status' => 1,
+      'weight' => 10,
+      'region' => 'content',
+      'pages' => '',
+      'cache' => -1,
+    ),
+    array(
+      'module' => 'user',
+      'delta' => 'new',
+      'theme' => $admin_theme,
+      'status' => 1,
+      'weight' => 0,
+      'region' => 'sidebar_first',
+      'pages' => '',
+      'cache' => -1,
+    ),
+
+  );
+  $query = db_insert('block')->fields(array(
+    'module',
+    'delta',
+    'theme',
+    'status',
+    'weight',
+    'region',
+    'pages',
+    'cache',
+  ));
+  foreach ($values as $record) {
+    $query->values($record);
+  }
+  $query->execute();
+}
+
+/**
+ * Add additional user roles besides Anonymous and Authenticated.
+ *
+ * This will likely remain as just and administrator role.
+ */
+function ghel_install_user_roles() {
+  // Create a default role for site administrators, with all available
+  // permissions assigned.
+  $admin_role = new stdClass();
+  $admin_role->name = 'site administrator';
+  $admin_role->weight = 2;
+  user_role_save($admin_role);
+  user_role_grant_permissions($admin_role->rid, array_keys(module_invoke_all('permission')));
+  // Set this as the administrator role.
+  variable_set('user_admin_role', $admin_role->rid);
+
+  // Assign user 1 the "administrator" role.
+  db_insert('users_roles')
+    ->fields(array('uid' => 1, 'rid' => $admin_role->rid))
+    ->execute();
+
+  $roles = array(
+    'course publisher' => array(),
+    'course creator' => array(),
+    'staff' => array(),
+    'content admin' => array(),
+    'content creator' => array(),
+    'learner' => array(),
+  );
+
+  foreach ($roles as $name => $permissions) {
+    $role = new stdClass();
+    $role->name = $name;
+    user_role_save($role);
+    if (!empty($permissions)) {
+      user_role_grant_permissions($role->rid, $permissions);
+    }
+  }
+}
+
+/**
+ * Configure a basic image media field for use in content types.
+ */
+function ghel_install_media_field_config() {
+  // Create an image field named "Image", enabled for the 'article' content
+  // type.
+  // Many of the following values will be defaulted, they're included here as an
+  // illustrative examples.
+  // See http://api.drupal.org/api/function/field_create_field/7
+  $field = array(
+    'field_name' => 'field_image',
+    'type' => 'image',
+    'cardinality' => 1,
+    'locked' => FALSE,
+    'indexes' => array('fid' => array('fid')),
+    'settings' => array(
+      'uri_scheme' => 'public',
+      'default_image' => FALSE,
+    ),
+    'storage' => array(
+      'type' => 'field_sql_storage',
+      'settings' => array(),
+    ),
+  );
+  field_create_field($field);
+
+}
+
+/**
+ * Adjust and theme settings.
+ */
+function ghel_install_config_theme() {
+  // Enable the admin theme.
+  db_update('system')
+    ->fields(array('status' => 1))
+    ->condition('type', 'theme')
+    ->condition('name', array('seven', 'center', 'elearning'))
+    ->execute();
+  variable_set('admin_theme', 'seven');
+  variable_set('node_admin_theme', '1');
+}
+
+/**
+ * Add any navigational elements to the appropriate areas.
+ */
+function ghel_install_nav_config() {
+  // Create a Home link in the main menu.
+  $item = array(
+    'link_title' => st('Home'),
+    'link_path' => '<front>',
+    'menu_name' => 'main-menu',
+    'weight' => -99,
+  );
+  menu_link_save($item);
+
+  // Update the menu router information.
+  menu_rebuild();
+}
+

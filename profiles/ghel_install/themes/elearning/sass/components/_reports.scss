@@ -1,0 +1,69 @@
+#views-exposed-form-ghel-all-achievements-page {
+  .views-exposed-widget {
+    // @include inline-block;
+    // vertical-align: top;
+  }
+}
+
+#edit-timestamp-wrapper {
+  .views-widget > .form-item,
+  label {
+    @include inline-block;
+  }
+
+  .form-text {
+    width: 6em;
+  }
+}
+
+.context-reports {
+  
+  #above-content {
+    background-image: none;
+    background: white;
+  }
+
+  #content .view {
+    overflow-x: scroll;
+    overflow-y: hidden;
+  }
+}
+
+.context-reports #block-menu-menu-ghel-reports {
+  ul li {
+    float: left;
+    list-style: none;
+    a {
+      @extend %button;
+      @extend %button-white;
+      @extend %button-small;
+      margin-right: $w-gutter-half;
+      
+      &.active {
+        border-color: $orange;
+        background-color: $orange;
+        color: $white;
+      }
+    }
+  }
+}
+
+.context-action-plan {
+  #sidebar-first {
+    .block {
+      h2 {
+        margin-bottom: 10px;
+      }
+      -webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+      -moz-box-sizing: border-box;    /* Firefox, other Gecko */
+      box-sizing: border-box;         /* Opera/IE 8+ */
+      padding: 1em;
+      background: lighten($gray-lightest, 5%);
+      @include border-radius(5px);
+    }
+    ul.action-plan-links {
+      margin: 0 0 0 20px;
+      padding: 0;
+    }
+  }
+}

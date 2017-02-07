@@ -1,0 +1,55 @@
+.node--ghel-course-page,
+.node--ghel-course-section,
+.node--quiz {
+  position: relative;
+}
+
+.course-edit {
+  position: absolute;
+  top: 0;
+  right: 0;
+
+  > a {
+    @extend %button;
+    @extend %button-touch-small;
+    @include link-colors($gray-dark, $gray-darkest, $gray-darkest);
+    @include icon-sprite(edit);
+    background-color: $white;
+    border-color: $gray;
+    overflow: hidden;
+    text-indent: 110%;
+    display: block;
+    white-space: nowrap;
+
+    &:hover {
+      border-color: $gray-dark;
+    }
+
+    &:active {
+      @include box-shadow(
+        rgba($gray-dark, .4) 0 0 0 0 inset,
+        $gray 0 2px 2px 0 inset
+      );
+      background-color: $gray-lightest;
+    }
+  }
+}
+
+// Hide/Show table weights
+.tabledrag-toggle-weight {
+  @include adjust-font-size-to($fs-xxs, 4);
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.workflow-state {
+  @include adjust-font-size-to($fs-xxs);
+  padding-left: 12px;
+  margin: 0 $w-gutter-half;
+  color: $orange-light;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.ghel-complete > .workflow-state { color: $gray; }
+.ghel-review-and-feedback > .workflow-state { color: $orange-dark; }

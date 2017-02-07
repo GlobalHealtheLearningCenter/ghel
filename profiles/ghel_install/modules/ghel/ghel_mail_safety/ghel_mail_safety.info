@@ -1,0 +1,7 @@
+name = GHeL Mail Safety
+description = Prevent GHeL email from being inadvertently sent during testing
+core = 7.x
+package = GHeL Custom Code
+php = 5.2.4
+version = 7.x-1.0
+project = ghel_actions

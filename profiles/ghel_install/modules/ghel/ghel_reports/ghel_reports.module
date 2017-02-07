@@ -1,0 +1,849 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Reports feature.
+ *
+ * @todo review performance and avoid use of 'GROUP BY' if necessary.
+ * @todo look into caching observation results and calculate new ones on cron
+ */
+
+include_once 'ghel_reports.features.inc';
+
+/**
+ * Implements hook_block_info().
+ */
+function ghel_reports_block_info() {
+  $blocks['encouragements'] = array(
+    'info' => t('Display encouragements to end users'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+  $blocks['observations'] = array(
+    'info' => t('Display observations to end users'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+
+  $blocks['completions'] = array(
+    'info' => t('Display links to encourage completion of tasks.'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+  return $blocks;
+}
+
+
+/**
+ * Implements hook_block_view().
+ */
+function ghel_reports_block_view($delta = '') {
+  switch ($delta) {
+    case 'encouragements':
+      return ghel_reports_get_encouragement_block();
+      break;
+
+    case 'observations':
+      return ghel_reports_get_observation_block();
+      break;
+
+    case 'completions':
+      return ghel_reports_get_completions_block();
+      break;
+  }
+}
+
+/**
+ * Get block content for observations.
+ */
+function ghel_reports_get_observation_block() {
+  $reports = array(
+    'ghel_reports_observation_completed_courses',
+    'ghel_reports_observation_certificates_since_year',
+    'ghel_reports_observation_users_learning_countries',
+  );
+
+  $items = array();
+
+  foreach ($reports as $function) {
+    if ($string = $function()) {
+      $items[] = $string;
+    }
+  }
+
+  if (!empty($items)) {
+    return array(
+      'subject' => t('Your Learning Community'),
+      'content' => array(
+        '#theme' => 'item_list',
+        '#title' => '',
+        '#type' => 'ul',
+        '#items' => $items,
+        '#attributes' => array(
+          'class' => 'site-stat',
+        ),
+      ),
+    );
+  }
+  return array();
+
+}
+
+function ghel_reports_get_encouragement_block() {
+  $reports = array(
+    'ghel_reports_encouragement_user_percentile',
+    'ghel_reports_encouragement_completed_courses_vs_started',
+    'ghel_reports_encouragement_completed_course_list_related',
+  );
+
+  $items = array();
+
+  foreach ($reports as $function) {
+    if ($string = $function()) {
+      $items[] = $string;
+    }
+  }
+
+  if (!empty($items)) {
+    return array(
+      'subject' => t('Encouragements'),
+      'content' => array(
+        '#theme' => 'item_list',
+        '#title' => '',
+        '#type' => 'ul',
+        '#items' => $items,
+        '#attributes' => array(
+          'class' => 'site-stat',
+        ),
+      ),
+    );
+  }
+
+  return array();
+}
+
+function ghel_reports_get_completions_block() {
+  $reports = array(
+    'ghel_reports_encouragement_started_course',
+    'ghel_reports_encouragement_completed_course_in_program',
+  );
+
+  $items = array();
+
+  foreach ($reports as $function) {
+    if ($string = $function()) {
+      $items[] = $string;
+    }
+  }
+
+  if (!empty($items)) {
+    return array(
+      'subject' => t('Next Steps'),
+      'content' => array(
+        '#theme' => 'item_list',
+        '#title' => '',
+        '#type' => 'ul',
+        '#items' => $items,
+        '#attributes' => array(
+          'class' => 'site-stat',
+        ),
+      ),
+    );
+  }
+
+  return array();
+}
+
+
+/**
+ * Encouragements functions.
+ */
+function ghel_reports_encouragement_reports() {
+  return array(
+    'ghel_reports_encouragement_started_course',
+    'ghel_reports_encouragement_completed_course_in_program',
+    'ghel_reports_encouragement_completed_course_list_related',
+    'ghel_reports_encouragement_program_progress',
+    'ghel_reports_encouragement_relative_completion',
+    'ghel_reports_encouragement_user_percentile',
+  );
+}
+
+function ghel_reports_encouragement_completed_courses_vs_started() {
+  global $user;
+
+  // Get total courses started
+  $query = "SELECT count(*) FROM {achievement_unlocks} au
+  INNER JOIN {field_data_field_ghel_revision} fr
+    ON (fr.entity_id = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', 1)
+    AND fr.field_ghel_revision_value = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', -1))
+  WHERE
+    achievement_id LIKE 'g-c-start%' AND
+    uid = :uid";
+  $started = db_query($query, array(':uid' => $user->uid))->fetchField();
+
+
+  // Get just current courses completed.
+  $query = "SELECT count(*) FROM {achievement_unlocks} au
+  INNER JOIN {field_data_field_ghel_revision} fr
+    ON (fr.entity_id = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', 1)
+    AND fr.field_ghel_revision_value = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', -1))
+  WHERE achievement_id LIKE 'g-c-completion%' AND
+    au.uid = :uid";
+
+  $complete = db_query($query, array(':uid' => $user->uid))->fetchField();
+
+  // We need this as some users with legacy completions may not have a recorded
+  // start.
+  $query = "SELECT count(*) FROM {achievement_unlocks} a1
+          LEFT JOIN achievement_unlocks a2 ON
+            SUBSTRING_INDEX(SUBSTRING_INDEX(a1.achievement_id, '-', -2), '-', 1) = SUBSTRING_INDEX(SUBSTRING_INDEX(a2.achievement_id, '-', -2), '-', 1) AND
+            a2.uid = a1.uid AND
+            SUBSTRING_INDEX(SUBSTRING_INDEX(a1.achievement_id, '-', -2), '-', -1) = SUBSTRING_INDEX(SUBSTRING_INDEX(a2.achievement_id, '-', -2), '-', -1)
+          INNER JOIN {field_data_field_ghel_revision} fr
+            ON (fr.entity_id = SUBSTRING_INDEX(SUBSTRING_INDEX(a1.achievement_id, '-', -2), '-', 1)
+            AND fr.field_ghel_revision_value = SUBSTRING_INDEX(SUBSTRING_INDEX(a1.achievement_id, '-', -2), '-', -1))
+          WHERE a1.uid = :uid AND
+            a1.achievement_id LIKE 'g-c-start%' AND
+            a2.achievement_id LIKE 'g-c-completion%'";
+
+  $start_and_finished = db_query($query, array(':uid' => $user->uid))->fetchField();
+
+  $in_progress = $started - $start_and_finished;
+  if (!empty($completed) || !empty($started)) {
+    return t('You have earned %completed certificates and have %started courses in progress.', array('%completed' => $complete, '%started' => $in_progress));
+  }
+
+  return '';
+}
+
+/**
+ * Reports a random course that the user has started but not yet finished.
+ *
+ * @return string
+ *   Empty or a string of a random course the user has started but not yet
+ *   finished.
+ */
+function ghel_reports_encouragement_started_course() {
+  global $user;
+  $query = db_select('achievement_unlocks', 'a');
+  $query->addField('a', 'achievement_id');
+  $query->condition('a.uid', $user->uid);
+  $query->condition('a.achievement_id', 'g-c-start%', 'LIKE');
+  $result = $query->execute();
+  $results = $result->fetchCol();
+
+  if (!empty($results)) {
+    foreach ($results as $achievement_id) {
+      $nid = ghel_achievements_get_nid($achievement_id);
+      $revision = ghel_achievements_get_revision($achievement_id);
+      $query = db_select('achievement_unlocks', 'a');
+      $query->addField('a', 'achievement_id');
+      $query->condition('a.achievement_id', 'g-c-completion-' . $nid . '-' . $revision);
+      $query->condition('a.uid', $user->uid);
+      $query->orderBy('a.timestamp', 'DESC');
+      $result = $query->execute();
+      $results = $result->fetchField();
+      if (empty($results)) {
+        // The user hasn't completed this course.
+        $course = node_load($nid);
+        return t('You started !course. Do you want to !continue?', array('!course' => l($course->title, 'node/' . $nid), '!continue' => l(t('continue'), 'node/' . $nid)));
+      }
+    }
+  }
+  return '';
+}
+
+/**
+ * Random incomplete course in a program the user has completed a course for.
+ *
+ * @param integer $interval
+ *   How recent to consider courses the user has completed.
+ *
+ * @return string
+ *   Empty or a string linking the user to a non-completed course in a program
+ *   the user has completed a course for.
+ */
+function ghel_reports_encouragement_completed_course_in_program($interval = 30) {
+  global $user;
+
+  $timestamp = REQUEST_TIME - ($interval * 60 * 60 * 24);
+
+  // You recently completed COURSENAME_A in PROGRAMNAME. Do you want to take
+  // COURSENAME_B in PROGRAMNAME?
+  $query = db_select('achievement_unlocks', 'a');
+  $query->addField('a', 'achievement_id');
+  $query->condition('a.uid', $user->uid);
+  $query->condition('a.timestamp', $timestamp, '>');
+  $query->condition('a.achievement_id', 'g-c-completion%', 'LIKE');
+  $result = $query->execute();
+  $results = $result->fetchCol();
+
+  if (!empty($results)) {
+    foreach ($results as $achievement_id) {
+      $nid = ghel_achievements_get_nid($achievement_id);
+      $completed = node_load($nid);
+      if (empty($completed)) {
+        continue;
+      }
+
+      $query = new EntityFieldQuery();
+      $query->entityCondition('entity_type', 'node');
+      $query->entityCondition('bundle', 'ghel_program');
+      $query->fieldCondition('field_ghel_courses', 'target_id', $nid);
+      $result = $query->execute();
+
+      if (!empty($result['node'])) {
+        foreach ($result['node'] as $course) {
+          $program = node_load($course->nid);
+          $courses = field_get_items('node', $program, 'field_ghel_courses');
+
+          // We don't need to preserve key value assoc.
+          shuffle($courses);
+          if (!empty($courses)) {
+            foreach ($courses as $program_course) {
+              if ($program_course['target_id'] != $nid) {
+                $pc = node_load($program_course['target_id']);
+                $revision = ghel_course_get_revision($pc);
+                $query = db_select('achievement_unlocks', 'a');
+                $query->addField('a', 'achievement_id');
+                $query->condition('a.uid', $user->uid);
+                $query->condition('a.achievement_id', 'g-c-completion-' . $pc->nid . '-' . $revision);
+                $result = $query->execute();
+                $results = $result->fetchCol();
+                if (empty($results)) {
+                  // They have not completed this course.
+                  $newcourse = node_load($program_course['target_id']);
+                  return t('You recently completed !completed in !program. Do you want to take !newcourse in !program?', array(
+                    '!completed' => l($completed->title, 'node/' . $completed->nid),
+                    '!program' => l($program->title, 'node/' . $program->nid),
+                    '!newcourse' => l($newcourse->title, 'node/' . $newcourse->nid),
+                  ));
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Incomplete courses that are related to a course they have recently completed.
+ *
+ * @param integer $interval
+ *   How recent to consider courses hte user has completed.
+ *
+ * @return string
+ *   Empty or a string linking the user to courses they have not completed that
+ *   are related to a recent course completion.
+ */
+function ghel_reports_encouragement_completed_course_list_related($interval = 30) {
+  global $user;
+  $timestamp = REQUEST_TIME - ($interval * 60 * 60 * 24);
+
+  $query = db_select('achievement_unlocks', 'a');
+  $query->addField('a', 'achievement_id');
+  $query->condition('a.uid', $user->uid);
+  $query->condition('a.timestamp', $timestamp, '>');
+  $query->condition('a.achievement_id', 'g-c-completion%', 'LIKE');
+  $result = $query->execute();
+  $results = $result->fetchCol();
+  if (!empty($results)) {
+    foreach ($results as $achievement_id) {
+      $nid = ghel_achievements_get_nid($achievement_id);
+      $completed = node_load($nid);
+      if (empty($completed)) {
+        continue;
+      }
+      $related = field_get_items('node', $completed, 'field_ghel_related_courses');
+
+      if (!empty($related)) {
+        shuffle($related);
+
+        foreach ($related as $related_course) {
+          $rc = node_load($related_course['target_id']);
+          $revision = ghel_course_get_revision($rc);
+          $query = db_select('achievement_unlocks', 'a');
+          $query->addField('a', 'achievement_id');
+          $query->condition('a.uid', $user->uid);
+          $query->condition('a.achievement_id', 'g-c-completion-' . $rc->nid . '-' . $revision);
+          $result = $query->execute();
+          $results = $result->fetchCol();
+          if (empty($results)) {
+            // They have not completed this course.
+            $newcourse = node_load($related_course['target_id']);
+            return t('You recently completed !completed. You might also be interested in !newcourse.', array(
+              '!completed' => l($completed->title, 'node/' . $completed->nid),
+              '!newcourse' => l($newcourse->title, 'node/' . $newcourse->nid),
+            ));
+          }
+        }
+      }
+    }
+  }
+  return '';
+}
+
+/**
+ * Show program progress and a link to a random incomplete course in program.
+ *
+ * @return string
+ *   Empty or a string reporting courses the user can take to work towards the
+ *   program certificate.
+ */
+function ghel_reports_encouragement_program_progress() {
+  global $user;
+
+  $query = db_select('achievement_unlocks', 'a');
+  $query->addField('a', 'achievement_id');
+  $query->condition('a.uid', $user->uid);
+  $query->condition('a.achievement_id', 'g-c-completion%', 'LIKE');
+  $result = $query->execute();
+  $results = $result->fetchCol();
+
+  if (!empty($results)) {
+    foreach ($results as $achievement_id) {
+      $nid = ghel_achievements_get_nid($achievement_id);
+      $query = new EntityFieldQuery();
+      $query->entityCondition('entity_type', 'node');
+      $query->entityCondition('bundle', 'ghel_program');
+      $query->fieldCondition('field_ghel_courses', 'target_id', $nid);
+      $result = $query->execute();
+
+      if (!empty($result['node'])) {
+        foreach ($result['node'] as $prog) {
+          $program = node_load($prog->nid);
+          $courses = field_get_items('node', $program, 'field_ghel_courses');
+          if (!empty($courses)) {
+            $count = 0;
+            $not_complete = array();
+            foreach ($courses as $courseid) {
+              $uc = node_load($courseid['target_id']);
+              $revision = ghel_course_get_revision($uc);
+              if (achievements_unlocked_already('g-c-completion-' . $uc->nid . '-' . $revision)) {
+                $count++;
+              }
+              else {
+                $not_complete[$courseid['target_id']] = $courseid['target_id'];
+              }
+            }
+          }
+
+          if (!empty($count)) {
+            shuffle($not_complete);
+            $incomplete = node_load(reset($not_complete));
+            if (!empty($incomplete)) {
+              return format_plural($count,
+                'You have completed %count course of %total in !program. Completing !course would help you make progress towards earning your certificate in !program',
+                'You have completed %count courses of %total in !program. Completing !course would help you make progress towards earning your certificate in !program',
+                array(
+                  '%count' => $count,
+                  '%total' => count($courses),
+                  '!program' => l($program->title, 'node/' . $program->nid),
+                  '!course' => l($incomplete->title, 'node/' . $incomplete->nid),
+                )
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+  return '';
+}
+
+/**
+ * Observation functions.
+ */
+function ghel_reports_observation_reports() {
+  return array(
+    'ghel_reports_observation_completed_courses',
+    'ghel_reports_observation_completed_programs',
+    'ghel_reports_observation_users_joined',
+    'ghel_reports_observation_users_by_country',
+  );
+}
+
+/**
+ * Return a string of users and course completions in the last X days.
+ *
+ * @param integer $interval
+ *   The amount of days to go back.
+ *
+ * @return string
+ *   Empty or a string indicating how many courses among how many users in the
+ *   last $interval days.
+ */
+function ghel_reports_observation_completed_courses($interval = 30) {
+  $timestamp = REQUEST_TIME - ($interval * 60 * 60 * 24);
+  // First query gets total courses.
+  $query = db_select('achievement_unlocks', 'a');
+  $query->addExpression('COUNT(*)', 'courses');
+  $query->condition('a.achievement_id', 'g-c-completion-%', 'LIKE');
+  $query->condition('a.timestamp', $timestamp, '>');
+  $result = $query->execute();
+  $courses = $result->fetchField();
+
+  // Same query just distinct uid (and not us).
+  $query = db_select('achievement_unlocks', 'a');
+  $query->addExpression('COUNT(DISTINCT(uid))', 'courses');
+  $query->condition('a.achievement_id', 'g-c-completion-%', 'LIKE');
+  $query->condition('a.timestamp', $timestamp, '>');
+  $result = $query->execute();
+  $users = $result->fetchField();
+
+  if (!empty($users) && !empty($courses)) {
+    return format_plural($users,
+      '%users person has completed %courses courses over the last %interval days.',
+      '%users people have completed %courses courses over the last %interval days.', array(
+        '%users' => $users,
+        '%courses' => $courses,
+        '%interval' => $interval,
+      )
+    );
+  }
+  return '';
+}
+
+/**
+ * Return a string of users and program completions in the last X days.
+ *
+ * @param integer $interval
+ *   The amount of days to go back.
+ *
+ * @return string
+ *   Empty or a string indicating how manu programs among how many users in the
+ *   last $interval days.
+ */
+function ghel_reports_observation_completed_programs($interval = 30) {
+  $timestamp = REQUEST_TIME - ($interval * 60 * 60 * 24);
+
+  $timestamp = REQUEST_TIME - ($interval * 60 * 60 * 24);
+  // First query gets total courses.
+  $query = db_select('achievement_unlocks', 'a');
+  $query->addExpression('COUNT(*)', 'courses');
+  $query->condition('a.achievement_id', 'g-p-completion-%', 'LIKE');
+  $query->condition('a.timestamp', $timestamp, '>');
+  $result = $query->execute();
+  $programs = $result->fetchField();
+
+  // Same query just distinct uid.
+  $query = db_select('achievement_unlocks', 'a');
+  $query->addExpression('COUNT(DISTINCT(uid))', 'courses');
+  $query->condition('a.achievement_id', 'g-p-completion-%', 'LIKE');
+  $query->condition('a.timestamp', $timestamp, '>');
+  $result = $query->execute();
+  $users = $result->fetchField();
+
+  if (!empty($users) && !empty($courses)) {
+    return format_plural($users,
+      '%users person has completed %programs programs over the last %interval days.',
+      '%users people have completed %programs programs over the last %interval days.', array(
+        '%users' => $users,
+        '%programs' => $programs,
+        '%interval' => $interval,
+      )
+    );
+  }
+  return '';
+}
+
+/**
+ * Return a string of how many users have joined in the last X days.
+ *
+ * @param integer $interval
+ *   The amount of days to go back.
+ *
+ * @return string
+ *   Empty or a string indicating the amount of users who have joined in the
+ *   last $interval days.
+ */
+function ghel_reports_observation_users_joined($interval = 30) {
+  $timestamp = REQUEST_TIME - ($interval * 60 * 60 * 24);
+
+  $query = db_select('users', 'u');
+  $query->addExpression('COUNT(*)', 'users');
+  $query->condition('u.created', $timestamp, '>');
+  $result = $query->execute();
+  $users = $result->fetchField();
+  if (!empty($users)) {
+    return format_plural($users,
+      '%users person has joined the site in the last %interval days.',
+      '%users people have joined the site in the last %interval days.', array(
+        '%users' => $users,
+        '%interval' => $interval,
+      )
+    );
+  }
+  return '';
+}
+
+/**
+ * Return a string of how many users in how many countries have joined in the
+ * last X days.
+ *
+ * @param integeger $interval
+ *   The amound of days to go back.
+ *
+ * @return string
+ *   Empty or a string indicating the number of users in how many countries have
+ *   joined in the last $interval days.
+ */
+function ghel_reports_observation_users_joined_countries($interval = 30) {
+  $timestamp = REQUEST_TIME - ($interval * 60 * 60 * 24);
+
+  $query = db_select('users' ,'u');
+  $query->leftJoin('field_data_field_ghel_user_location', 'd', 'd.entity_id = u.uid');
+  $query->condition('u.created', $timestamp, '>');
+  $query->addExpression('COUNT(*)', 'users');
+  $query->addExpression('COUNT(DISTINCT(d.field_ghel_user_location_value))', 'countries');
+  $result = $query->execute();
+  $results = $result->fetchAll();
+
+  if (!empty($results)) {
+    return format_plural($results[0]->users,
+      '%users person from %country countries have registered in the last %days days.',
+      '%users people from %country countries have registered in the last %days days.',
+      array(
+        '%users' => $results[0]->users,
+        '%country' => $results[0]->countries,
+        '%days' => $interval
+      )
+    );
+  }
+}
+
+/**
+ * Return a string of how many certificates have been earned since a given year
+ */
+function ghel_reports_observation_certificates_since_year($year = 2005) {
+  $timestamp = mktime(0,0,0,1,1,$year);
+
+  $query = "SELECT COUNT(*)
+    FROM {achievement_unlocks} au
+    WHERE (au.achievement_id LIKE :pattern1 OR au.achievement_id LIKE :pattern2)
+      AND timestamp > :timestamp";
+  $args = array(
+    ':pattern1' => db_like('g-c-completion') . '%',
+    ':pattern2' => db_like('g-p-completion') . '%',
+    ':timestamp' => $timestamp,
+  );
+  $result = db_query($query, $args);
+  $certificates = $result->fetchField();
+
+  return format_plural($certificates,
+    '%certificates certificate has been earned since %year.',
+    '%certificates certificates have been earned since %year.',
+    array(
+      '%certificates' => $certificates,
+      '%year' => $year,
+    )
+  );
+}
+
+/**
+ * Return a string of how many users in how many countries are using the site.
+ *
+ * @return string
+ *   Empty or a string indicating the number of users in how many countries have
+ *   joined in the last $interval days.
+ */
+function ghel_reports_observation_users_learning_countries() {
+
+  $query = db_select('users' ,'u');
+  $query->leftJoin('field_data_field_ghel_user_location', 'd', 'd.entity_id = u.uid');
+  $query->addExpression('COUNT(*)', 'users');
+  $query->addExpression('COUNT(DISTINCT(d.field_ghel_user_location_value))', 'countries');
+  $result = $query->execute();
+  $results = $result->fetchAll();
+
+  if (!empty($results)) {
+    return format_plural($results[0]->users,
+      '%users person from %country countries are learning here.',
+      '%users people from %country countries are learning here.',
+      array(
+        '%users' => $results[0]->users,
+        '%country' => $results[0]->countries,
+      )
+    );
+  }
+}
+
+
+/**
+ * Returns a count of users participating in a random country.
+ *
+ * @return string
+ *   Empty or a string indicating how many users in a random country are
+ *   participating.
+ */
+function ghel_reports_observation_users_by_country() {
+  $field = field_info_field('field_ghel_user_location');
+
+  $query = db_select('field_data_field_ghel_user_location', 'l');
+  $query->addField('l', 'field_ghel_user_location_value', 'country');
+  $query->addExpression('COUNT(*)', 'users');
+  $query->isNotNull('field_ghel_user_location_value');
+  $query->condition('l.entity_type', 'user');
+  $query->groupBy('l.field_ghel_user_location_value');
+  $result = $query->execute();
+  $results = $result->fetchAllKeyed();
+
+  // shuffle() doesn't preserve key -> value associations.
+  $results = ghel_reports_shuffle_assoc($results);
+  reset($results);
+
+  if (!empty($results)) {
+    return format_plural(current($results),
+      '%users person from %country is working in this site',
+      '%users people from %country are working in this site',
+      array(
+        '%users' => current($results),
+        '%country' => $field['settings']['allowed_values'][key($results)],
+      )
+    );
+  }
+  return '';
+}
+
+/**
+ * Calculates the percentile of course completers the current user is in.
+ *
+ * @return string
+ *   Empty or a string indicating what percentile of course completors
+ *   the current user is in.
+ */
+function ghel_reports_encouragement_user_percentile() {
+  global $user;
+
+  // First get the total number of courses this user has completed.
+  $query = "SELECT COUNT(*) as courses
+    FROM {achievement_unlocks} au
+    INNER JOIN {field_data_field_ghel_revision} fr
+    ON (fr.entity_id = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', 1)
+    AND fr.field_ghel_revision_value = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', -1))
+    WHERE au.achievement_id LIKE :pattern
+      AND au.uid = :uid";
+  $args = array(
+    ':pattern' => db_like('g-c-completion') . '%',
+    ':uid' => $user->uid,
+  );
+  $result = db_query($query, $args);
+
+  $completions = $result->fetchField();
+
+  if (empty($completions)) {
+    return '';
+  }
+
+  // Now determine the total number of users who have completed courses.
+  $query = "SELECT COUNT(DISTINCT(uid))
+    FROM {achievement_unlocks} au
+    INNER JOIN {field_data_field_ghel_revision} fr
+      ON (fr.entity_id = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', 1)
+      AND fr.field_ghel_revision_value = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', -1))
+    WHERE au.achievement_id LIKE :pattern";
+  $args = array(
+    ':pattern' => db_like('g-c-completion') . '%',
+  );
+  $result = db_query($query, $args);
+  $users = $result->fetchField();
+
+  // Total number of users who have completed fewer courses than this user.
+  $query = "SELECT uid, count(*) as courses
+    FROM {achievement_unlocks} au
+    INNER JOIN {field_data_field_ghel_revision} fr
+      ON (fr.entity_id = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', 1)
+      AND fr.field_ghel_revision_value = SUBSTRING_INDEX(SUBSTRING_INDEX(au.achievement_id, '-', -2), '-', -1))
+    WHERE au.achievement_id LIKE :pattern
+    GROUP BY au.uid
+    HAVING count(*) < :completions";
+  $args = array(
+    ':pattern' => db_like('g-c-completion') . '%',
+    ':completions' => $completions,
+  );
+  $result = db_query($query, $args);
+  $below = $result->rowCount();
+
+  $percentile = floor(100 * ((float) $below / (float) $users));
+
+  if (!empty($percentile)) {
+    return t('You are in the top %percentile percentile of users who have completed courses.', array('%percentile' => $percentile));
+  }
+
+  return '';
+}
+
+/**
+ * How many other users have recently completed as many or more courses.
+ *
+ * @param integer $interval
+ *   The number of days to include.
+ *
+ * @return string
+ *   Empty or a string indicating how many courses this user has finished in the
+ *   last $interval days and how many other users have completed as many
+ *   courses.
+ */
+function ghel_reports_encouragement_relative_completion($interval = 30) {
+  global $user;
+  $timestamp = REQUEST_TIME - ($interval * 60 * 60 * 24);
+
+  // First get the total number of courses this user has completed.
+  $query = db_select('achievement_unlocks', 'a');
+  $query->addExpression('COUNT(*)', 'courses');
+  $query->condition('a.achievement_id', 'g-c-completion%', 'LIKE');
+  $query->condition('a.timestamp', $timestamp, '>');
+  $query->condition('a.uid', $user->uid);
+  $result = $query->execute();
+  $completions = $result->fetchField();
+
+  // Total number of users who have completed fewer courses than this user.
+  $query = "SELECT uid, count(*) as courses
+    FROM {achievement_unlocks} a
+    WHERE a.achievement_id LIKE :pattern AND
+      a.timestamp > :timestamp AND
+      a.uid != :uid
+    GROUP BY a.uid
+    HAVING count(*) >= :completions";
+  $args = array(
+    ':pattern' => db_like('g-c-completion') . '%',
+    ':uid' => $user->uid,
+    ':timestamp' => $timestamp,
+    ':completions' => $completions,
+  );
+  $result = db_query($query, $args);
+  $other = $result->rowCount();
+
+  if (!empty($completions) && !empty($other)) {
+    return t('You and %other users have completed %completions or more courses in the last %interval days.', array(
+      '%other' => $other,
+      '%completions' => $completions,
+      '%interval' => $interval,
+    ));
+  }
+  return '';
+}
+
+/**
+ * Helper function to shuffle preserving keys.
+ *
+ * @param array $array
+ *   The array to shuffle while preserving key => value aassociations.
+ *
+ * @return mixed
+ *   If $array is an array it is returned shuffled otherwise $array is returned.
+ */
+function ghel_reports_shuffle_assoc($array) {
+  if (!is_array($array)) {
+    return $array;
+  }
+
+  $shuffled = array();
+  $keys = array_keys($array);
+  shuffle($keys);
+  foreach ($keys as $key) {
+    $shuffled[$key] = $array[$key];
+  }
+  return $shuffled;
+}

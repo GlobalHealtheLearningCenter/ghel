@@ -1,0 +1,28 @@
+name = "GHeL Migration"
+description = "Data migration module"
+core = 7.x
+package = GHeL
+php = 5.2.4
+version = 7.x-1.0-dev
+project = ghel_migrate
+
+dependencies[] = migrate
+dependencies[] = field
+dependencies[] = file
+dependencies[] = image
+dependencies[] = number
+dependencies[] = text
+dependencies[] = options
+dependencies[] = taxonomy
+
+;include the files that contains your Migrate classes
+files[] = ghel_migrate.module
+files[] = ghel_migrate_course.inc
+files[] = ghel_migrate_exam_status.inc
+files[] = ghel_migrate_glossary.inc
+files[] = ghel_migrate_page.inc
+files[] = ghel_migrate_program.inc
+files[] = ghel_migrate_quiz.inc
+files[] = ghel_migrate_quiz_question.inc
+files[] = ghel_migrate_section.inc
+files[] = ghel_migrate_user.inc

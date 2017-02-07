@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Translation contexts feature.
+ */
+
+include_once 'ghel_trans_contexts.features.inc';

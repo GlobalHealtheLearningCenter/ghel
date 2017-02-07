@@ -1,0 +1,49 @@
+<?php
+/**
+ * @file
+ * Update code for ghel workflow related details.
+ */
+
+// deprecated course page status workflow id
+define('GHEL_WORKFLOW_COURSE_PAGE_STATUS', 1);
+
+/**
+ * Remove legacy course page status workflow.
+ */
+function ghel_workflow_update_7100() {
+  workflow_delete_workflows_by_wid(GHEL_WORKFLOW_COURSE_PAGE_STATUS);
+}
+
+/**
+ * Update og_workflow permissions
+ */
+function ghel_workflow_update_7101() {
+  // make sure our constants are defined.
+  module_load_include('module', 'ghel_course', 'ghel_course');
+  ghel_course_init();
+
+  db_update('og_workflow_transitions')
+    ->fields(array(
+      'roles' => GHEL_COURSE_ADMINISTRATOR_UNPRIVILEGED
+    ))
+    ->condition('sid', GHEL_WORKFLOW_STATE_PUBLISHED)
+    ->condition('target_sid', GHEL_WORKFLOW_STATE_UNDER_REVIEW)
+    ->execute();
+
+  db_update('og_workflow_transitions')
+    ->fields(array(
+      'roles' => GHEL_COURSE_ADMINISTRATOR_UNPRIVILEGED
+    ))
+    ->condition('sid', GHEL_WORKFLOW_STATE_PUBLISHED)
+    ->condition('target_sid', GHEL_WORKFLOW_STATE_FEEDBACK)
+    ->execute();
+
+  db_update('og_workflow_transitions')
+    ->fields(array(
+      'roles' => GHEL_COURSE_ADMINISTRATOR_UNPRIVILEGED
+    ))
+    ->condition('sid', GHEL_WORKFLOW_STATE_PUBLISHED)
+    ->condition('target_sid', GHEL_WORKFLOW_STATE_ARCHIVED)
+    ->execute();
+}
+

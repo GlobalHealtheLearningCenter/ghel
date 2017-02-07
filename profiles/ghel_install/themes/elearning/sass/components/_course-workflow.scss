@@ -1,0 +1,149 @@
+body.course-workflow {
+    background-color: #e8eaec;
+}
+
+
+
+.page-course-workflow {
+    max-width: 100%;
+    overflow: hidden;
+
+
+    #comment-form {
+        height: auto;
+        overflow: visible;
+        max-height: 1000px;
+        box-shadow: none;
+        > div {
+            width: auto;
+            height: auto;
+            padding: 5px;
+        }
+        .form-actions {
+            margin: 0;
+            padding: 0;
+
+            .form-submit {
+                font-size: 12px;
+            }
+        }
+    }
+
+    #cke_contents_edit-comment-body-und-0-value,
+    #cke_contents_edit-comment-body-und-0-value--2 {
+        height: 270px !important;
+    }
+
+
+    #main-wrapper {
+        max-width: 100%;
+        padding-bottom: rhythm(4);
+        background: #6a6a6a url("../images/px_pattern.png") repeat 0 0;
+        min-height: 600px;
+    }
+
+    .tabcontainer {
+        max-width: 960px;
+        width: 100%;
+        margin: 0 auto;
+        text-align: left;
+
+        #tabs {
+            margin-bottom: 0;
+
+            .nav-local-tasks {
+                > li {
+                    display: inline-block;
+                    margin: 0 0 10px 5px;
+                    &:first-child {
+                        margin-left:0;
+                    }
+
+                    > a {
+                        margin: 0;
+                    }
+                }
+
+
+            }
+        }
+    }
+    #main {
+        @include box-shadow(rgba(0, 0, 0, 0.5) 1px 2px 9px);
+        clear: left;
+        border-radius: 0;
+        border: none;
+        max-width: 960px;
+        margin: 0 auto;
+
+        ul,
+        ol {
+            position: relative;
+            right: -20px;
+            padding-right:30px;
+        }
+    }
+
+    #main-content {
+        padding: rhythm(2) $w-gutter ;
+
+        h1 {
+            margin: 30px 0 10px;
+        }
+    }
+
+    #above-content {
+        padding: rhythm(5) $w-gutter;
+        @include trailing-border(1px, 5);
+        border-color: $border-color;
+    }
+
+    #below-content {
+        @include clearfix;
+        padding: rhythm(5) $w-gutter;
+        @include leading-border(1px, 5);
+        border-color: $border-color;
+    }
+}
+
+// Node add watermarks
+.page-node-add-ghel-course-section,
+.page-node-add-ghel-course-page,
+.page-node-add-quiz {
+
+    #main {
+        position: relative;
+
+        > .page-width {
+            position: relative;
+            z-index: 1;
+        }
+    }
+
+    #main:after {
+        @include opacity(.1);
+        @include adjust-font-size-to(70px);
+        display: block;
+        position: absolute;
+        top: 17px;
+        left: 17px;
+        color: $blue-dark;
+        font-family: "SSStandard";
+        z-index: 0;
+    }
+
+}
+
+.page-node-add-ghel-course-page #main:after {
+    top: 10px;
+    left: 2px;
+    content: "\1f4c4";  // Page
+}
+
+.page-node-add-ghel-course-section #main:after {
+    content: "\ed50";   // List
+}
+
+.page-node-add-quiz #main:after {
+    content: "\2753";   // Question
+}

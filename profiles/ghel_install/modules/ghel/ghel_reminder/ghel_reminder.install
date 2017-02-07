@@ -1,0 +1,43 @@
+<?php
+
+/**
+ * Implements hook_schema().
+ */
+function ghel_reminder_schema() {
+  $schema = array();
+
+  $schema['ghel_reminder'] = array(
+    'description' => 'Tracks user reminders',
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'reminded' => array(
+        'description' => 'The last time the user was reminded for a course',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'disp-size' => 11,
+      ),
+      'course_id' => array(
+        'description' => 'The course the user was reminded to complete',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'disp-size' => 11,
+      ),
+    ),
+    'indexes' => array(
+      'uid' => array('uid'),
+      'reminded' => array('reminded'),
+      'course_id' => array('course_id'),
+    ),
+  );
+
+  return $schema;
+}

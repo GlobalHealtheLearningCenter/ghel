@@ -1,0 +1,171 @@
+//
+// @file
+// User styles.
+
+.profile {
+  @include zen-grid-container;
+}
+
+.profile-header,
+.profile-aside,
+.profile-footer {
+  @include zen-grid-item(12, 1, right, $gutter-width: 0);
+  @include zen-clear(right);
+
+  @include breakpoint($tablet, $no-query: '.lt-ie9') {
+    @include zen-grid-item(10, 1, right, $gutter-width: $zen-gutter-width);
+  }
+}
+
+.profile-figure {
+  padding-top: rhythm(8);
+  @include clearfix;
+
+  @include breakpoint($tablet, $no-query: '.lt-ie9') {
+    padding-top: rhythm(2);
+    @include zen-grid-item(2, 1);
+  }
+}
+
+.profile-footer {
+  margin-bottom: rhythm(2);
+}
+
+.profile-aside {
+  @include zen-grid-container;
+
+  .field {
+    margin-bottom: rhythm(2);
+    @include zen-grid-item(12, 1, $gutter-width: 0);
+    @include zen-clear(left);
+
+    @include breakpoint($tablet, $no-query: '.lt-ie9') {
+      @include zen-grid-item(4, 1, $gutter-width: 0);
+    }
+  }
+
+  .field-ghel-text-bio {
+    margin-bottom: rhythm(0);
+    @include zen-grid-item(12, 1, $gutter-width: 0);
+    @include zen-clear(left);
+    @include breakpoint($mobile, $no-query: '.lt-ie9') {
+      @include zen-grid-item(8, 1, right);
+    }
+  }
+}
+
+.email-link {
+  display: block;
+  margin-bottom: rhythm(2);
+}
+
+.profile-social-links {
+  @include clearfix;
+
+  .social-link,
+  .field-ghel-link-linkedin {
+    @include inline-block;
+    margin-right: $w-gutter-half;
+  }
+
+  .ss-icon {
+    @include adjust-font-size-to($fs-xxl);
+
+    &:hover {
+      text-decoration: none;
+    }
+  }
+}
+
+// Login-specific styles
+
+.toboggan-unified #login-message {
+  font-size: 30px;
+  color: $accent-color;
+  font-weight: 400;
+  text-align: left;
+
+}
+
+.toboggan-unified #login-links {
+    line-height: 41px;
+    text-align: left;
+    margin: 30px 0 0;
+    position: relative;
+    z-index: 200;
+
+ a {
+    border: 1px solid #ddd;
+    position: relative;
+    color: #424c5e;
+    font-weight: bold;
+    font-size: 15px;
+    padding: 10px;
+    white-space: nowrap;
+    font-weight: 400;
+    background: #fafafa;
+
+    &:hover {
+      text-decoration: underline;
+      background:#fafafa;
+    }
+
+    &:active {
+      border: 1px solid rgba(0, 0, 0, 0);
+      background-color: #FFF;
+      text-decoration: none;
+      color: $link-color;
+      border-bottom-color: #fff;
+      box-shadow: 1px 0px 3px -1px rgba(0,0,0,0.3);
+    }
+
+    &.lt-active,
+    &.lt-active:hover {
+      border: 1px solid rgba(0, 0, 0, 0);
+      text-decoration: underline;
+      background:#fff;
+       text-decoration: none;
+       border-bottom-color: #fff;
+      box-shadow: 1px 0px 3px -1px rgba(0,0,0,0.3);
+    }
+  }
+
+}
+
+.toboggan-unified {
+  #login-form,
+  #register-form{
+    padding:30px 40px;
+    box-sizing:border-box;
+    background:#fff;
+    @include box-shadow(1px 1px 4px -2px rgba(0,0,0,0.2));
+    position: relative;
+    z-index: 201;
+    #user-register-form .form-item, 
+    #user-login .form-item, 
+    #user-pass .form-item, 
+    #contact-site-form .form-item{
+      padding-left:150px;
+    }
+    #user-register-form .form-item, 
+    #user-login .form-item, 
+    #user-pass .form-item, 
+    #contact-site-form .form-item{
+        .form-item{
+          padding:0;
+        }
+    }
+    #user-register-form .form-actions, 
+    #user-login .form-actions, 
+    #user-pass .form-actions, 
+    #contact-site-form .form-actions{
+      padding-left:0;
+    }
+  }
+}
+.login-forgot > a {
+  @extend %button;
+  @extend %button-small;
+  @extend %button-white;
+  color: #c3c7cc;
+}

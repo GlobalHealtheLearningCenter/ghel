@@ -1,0 +1,49 @@
+// Borders
+// -------
+
+.image-frame > img,
+.image-frame > a > img {
+  @include box-sizing(border-box);
+  @include box-shadow(rgba($gray-dark, .6) 0 1px 3px);
+  padding: 4px;
+  background-color: $white;
+}
+
+// Floating
+// --------
+
+.image-left {
+  margin-bottom: rhythm(1);
+  text-align: center;
+
+  @include breakpoint($mobile, $no-query: '.lt-ie9') {
+  	float: left;
+    text-align: left;
+    margin: 0 $w-gutter rhythm(1) 0;
+  }
+
+  // Placeholder for responsive image style
+  // 
+  // img {
+  //   width: 100%;
+  //   height: auto;
+  // }
+}
+
+.image-right {
+  margin-bottom: rhythm(1);
+  text-align: center;
+
+  @include breakpoint($mobile, $no-query: '.lt-ie9') {
+    float: right;
+    text-align: right;
+    margin: 0 0 rhythm(1) $w-gutter;
+  }
+
+  // Placeholder for responsive image style
+  // 
+  // img {
+  //   width: 100%;
+  //   height: auto;
+  // }
+}

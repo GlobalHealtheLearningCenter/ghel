@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Discussion feature.
+ */
+
+include_once 'ghel_discussion.features.inc';

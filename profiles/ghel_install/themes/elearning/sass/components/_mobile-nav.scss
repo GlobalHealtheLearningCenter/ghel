@@ -1,0 +1,47 @@
+.region-navigation {
+  position: relative;
+    > .nav-touch {
+    width: 20px;
+    position: absolute;
+    top: -50px;
+    left: 0;
+    text-align: center;
+
+    .nav-link {
+      @include border-top-radius(4px);
+      margin: 0 $w-gutter-half;
+    }
+
+    .nav-link.active {
+      @include box-shadow(
+        blend-overlay(rgba($black, .2), $orange) 0 3px 5px 0 inset,
+        blend-overlay(rgba($white, .2), $orange) 0 20px 12px -12px inset
+      );
+      background-color: $orange;
+    }
+  }
+}
+
+.nav-link--main-menu {
+  @include icon-sprite(menu);
+
+  &.active { @include icon-sprite(menu-active); }
+}
+
+.nav-link--user-menu {
+  @include icon-sprite(user);
+
+  &.active { @include icon-sprite(user-active); }
+}
+
+.nav-link--search {
+  @include icon-sprite(search);
+
+  &.active    { @include icon-sprite(search-active); }
+}
+
+.region-navigation .tabbed-navigation{
+  @include breakpoint($mobile-nav, $no-query: '.lt-ie9') {
+    display: none !important; // Hide this when the user menu fits on the screen
+  }
+}

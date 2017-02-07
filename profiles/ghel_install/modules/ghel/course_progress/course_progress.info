@@ -1,0 +1,5 @@
+name = Course Progress
+description = Provides course progress block.
+package = Other
+core = 7.x
+dependencies[] = ghel_course

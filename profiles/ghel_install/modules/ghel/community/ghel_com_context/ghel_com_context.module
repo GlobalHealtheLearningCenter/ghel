@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Community Contexts feature.
+ */
+
+include_once 'ghel_com_context.features.inc';

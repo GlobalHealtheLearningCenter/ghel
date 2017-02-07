@@ -1,0 +1,5 @@
+name = "HTML5 Fields"
+description = Semantic field options for Display Suite
+core = 7.x
+package = "Display suite"
+dependencies[] = ds

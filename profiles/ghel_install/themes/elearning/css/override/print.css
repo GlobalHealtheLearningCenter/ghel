@@ -1,0 +1,106 @@
+/*
+  * Print styles.
+  *
+  * Inlined to avoid required HTTP connection: www.phpied.com/delay-loading-your-print-css/
+  * Credit to Paul Irish and HTML5 Boilerplate (html5boilerplate.com)
+ */
+/* line 7, ../../sass/override/print.scss */
+.print-only {
+  display: none !important;
+}
+
+@media print {
+  /* line 10, ../../sass/override/print.scss */
+  * {
+    font-family: Helvetica, Arial, sans-serif;
+  }
+
+  /* line 13, ../../sass/override/print.scss */
+  * {
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    -ms-filter: none !important;
+  }
+
+  /* Black prints faster: h5bp.com/s */
+  /* line 14, ../../sass/override/print.scss */
+  a, a:visited {
+    text-decoration: underline;
+  }
+
+  /* line 16, ../../sass/override/print.scss */
+  abbr[title]:after {
+    content: " (" attr(title) ")";
+  }
+
+  /* line 17, ../../sass/override/print.scss */
+  .ir a:after, a[href^="javascript:"]:after, a[href^="#"]:after {
+    content: "";
+  }
+
+  /* Don't show links for images, or javascript/internal links */
+  /* line 18, ../../sass/override/print.scss */
+  pre, blockquote {
+    border: 1px solid #999;
+    page-break-inside: avoid;
+  }
+
+  /* line 19, ../../sass/override/print.scss */
+  thead {
+    display: table-header-group;
+  }
+
+  /* h5bp.com/t */
+  /* line 20, ../../sass/override/print.scss */
+  tr, img {
+    page-break-inside: avoid;
+  }
+
+  /* line 21, ../../sass/override/print.scss */
+  img {
+    max-width: 100% !important;
+  }
+
+  @page {
+    margin: 0.5cm;
+  }
+  /* line 23, ../../sass/override/print.scss */
+  p, h2, h3 {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* line 24, ../../sass/override/print.scss */
+  h2, h3 {
+    page-break-after: avoid;
+  }
+
+  /* line 25, ../../sass/override/print.scss */
+  .hide-on-print, #toolbar, #footer, .nav-local-tasks {
+    display: none !important;
+  }
+
+  /* line 26, ../../sass/override/print.scss */
+  .print-only {
+    display: block !important;
+  }
+
+  /* line 27, ../../sass/override/print.scss */
+  .hide-for-print {
+    display: none !important;
+  }
+
+  /* line 28, ../../sass/override/print.scss */
+  .show-for-print {
+    display: inherit !important;
+  }
+
+  /* line 30, ../../sass/override/print.scss */
+  h2 {
+    font-size: 18px;
+    line-height: 20px;
+  }
+}

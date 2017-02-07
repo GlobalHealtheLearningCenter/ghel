@@ -1,0 +1,114 @@
+// //
+// // @file
+// // Faq styles.
+
+// .node-ghel-faq {
+//   > .ds-content {
+//     padding:;
+//   }
+
+//   .field-name-body {
+//     @include adjust-font-size-to($fs-m);
+//   }
+// }
+
+// // JS Processed
+
+// .is-collapsed,
+// .is-expanded {
+//   > .faq-title,
+//   > div.faq-title {
+//     cursor: pointer;
+
+//     &:before {
+//       padding-right: .66em;
+//       font-size: 12px;
+//     }
+
+//     &:hover {
+//       text-decoration: none;
+//     }
+//   }
+// }
+
+// .faq-title {
+//   margin: 0;
+//   color: $blue-dark;
+// }
+.node-ghel-partner {
+  @extend .clearfix;
+  .ds-header{
+    width: 28%;
+    float: left;
+    img{
+      width: 100%;
+      height: auto;
+    }
+  }
+  .ds-content{
+    margin-left: 1%;
+    width: 71%;
+    float: left;
+  }
+
+  .ds-footer{
+    margin: 0;
+    padding: 10px;
+}
+
+  &.view-mode-full{
+     .ds-header{
+        max-width: 160px;
+    }
+  }
+}
+
+.view-id-faqs{
+  background: #fff;
+  padding: 10px 10px 0;
+  @include box-shadow(rgba(0, 0, 0, 0.1)1px 1px 4px -1px );
+  h3{
+    color:$secondary;
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+  .article-list{ 
+    margin:0 -10px;
+    .article-item{
+      padding:0;
+     
+    }
+  }
+
+.ds-header{
+  margin:0;
+  padding:0;
+  h4{    
+    padding: 10px;
+    display: block;
+    background: #f9f9f9;
+    cursor: pointer;
+    margin: 0;
+     &:before{
+      margin-right: 10px;
+      font-size: 11px;
+      padding: 0;
+    }
+  }
+  &.is-expanded{
+    h4{
+      background:#FEFBF3;
+    }
+  }
+}
+
+.ds-content{
+    padding: 20px !important;
+    height: auto;
+    min-height: 70px;
+    width: 100% !important;
+    border-top: 1px solid #d2d5d9;
+    background: #FEFBF3;
+    box-sizing: border-box;
+}
+}

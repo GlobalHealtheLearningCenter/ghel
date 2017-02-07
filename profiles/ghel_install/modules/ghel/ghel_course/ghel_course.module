@@ -1,0 +1,1053 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Course feature.
+ */
+
+define('GHEL_COURSE_ROLE_NON_MEMBER', 1);
+define('GHEL_COURSE_ROLE_MEMBER', 2);
+define('GHEL_COURSE_ADMINISTRATOR', 3);
+
+include_once 'ghel_course.features.inc';
+
+/**
+ * Implements hook_menu().
+ */
+function ghel_course_menu() {
+  $items['node/%node/structure'] = array(
+    'title' => 'Structure',
+    'page callback' => 'ghel_course_structure',
+    'page arguments' => array(1),
+    'access callback' => 'ghel_course_structure_access',
+    'access arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+  );
+  return $items;
+}
+
+/**
+ * Access control function to determine if the user should see a structure tab.
+ *
+ * @param object $node
+ *   This may be a course, or course content. We return access control relative
+ *   to the corresponding course.
+ *
+ * @return bool
+ *   TRUE if the user can update the course node, FALSE otherwise.
+ */
+function ghel_course_structure_access($node) {
+  if ($node->type == 'ghel_course') {
+    return node_access('update', $node);
+  }
+
+  return FALSE;
+}
+
+/**
+ * Implements hook_init().
+ *
+ * Used to define several db dependant constants
+ */
+function ghel_course_init() {
+  //
+  //  SELECT rid from og_role where group_type = 'node' and group_bundle = 'ghel_course' and name like '%administrator%' and name like '%unprivileged%';
+
+  // Not in db prior to workflow update
+  // @TODO switch to db provided value (post workflow update) to avoid SQL query
+  $admin_unprivileged = db_query("SELECT rid FROM {og_role}
+    WHERE group_type = 'node'
+      AND group_bundle = 'ghel_course'
+      AND name = 'administrator (unprivileged)'"
+  )->fetchField();
+  define('GHEL_COURSE_ADMINISTRATOR_UNPRIVILEGED', $admin_unprivileged);
+}
+
+/**
+ * Return the structure tab for a course or course page.
+ *
+ * @param object $node
+ *   This may be a course, or course content. We return access control relative
+ *   to the corresponding course.
+ */
+function ghel_course_structure($node) {
+  $course = ghel_course_get_course($node);
+  if (!empty($course)) {
+    $info = field_info_instance('node', 'field_ghel_course_navigation', 'ghel_course');
+    $delta = implode('-', array(
+      'field',
+      $info['entity_type'],
+      $info['bundle'],
+      $info['field_name'])
+    );
+    if (strlen($delta) > 32) {
+      $delta = md5($delta);
+    }
+
+    $block = module_invoke('formblock', 'block_view', $delta);
+    if (!empty($block['content'])) {
+      return render($block['content']);
+    }
+  }
+
+  drupal_not_found();
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function ghel_course_block_info() {
+  $blocks['previous'] = array(
+    'info' => t('Display previous link for course navigation'),
+    'cache' => DRUPAL_CACHE_PER_PAGE,
+  );
+
+  $blocks['next'] = array(
+    'info' => t('Display next link for course navigation'),
+    'cache' => DRUPAL_CACHE_PER_PAGE,
+  );
+
+  $blocks['start'] = array(
+    'info' => t('Start/Resume Course link'),
+    'cache' => DRUPAL_CACHE_PER_ROLE | DRUPAL_CACHE_PER_PAGE,
+  );
+
+  $blocks['create'] = array(
+    'info' => t('Course creation links'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+
+  $blocks['offline'] = array(
+    'info' => t('Offline reading section'),
+    'cache' => DRUPAL_CACHE_PER_ROLE | DRUPAL_CACHE_PER_PAGE,
+  );
+
+  $blocks['links'] = array(
+    'info' => t('Course completion links'),
+    'cache' => DRUPAL_CACHE_PER_USER | DRUPAL_CACHE_PER_PAGE,
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_exit().
+ */
+function ghel_course_exit($destination = NULL) {
+  global $user;
+
+  // Sometimes hook_exit() is called in situations where it is documented that
+  // it will not be called.
+  if (function_exists('user_load')) {
+    // ensure we have a fully loaded user object
+    $account = user_load($user->uid);
+
+    // log the current user's page view if it is a course page item
+    if ($object = menu_get_object('node')) {
+      // we don't want to log the actual page view for if this is a course
+      if ($object->type != 'ghel_course' && $course = ghel_course_get_course($object)) {
+        db_merge('ghel_course_last_page_view')
+          ->key(array('uid' => $account->uid, 'course_nid' => $course->nid))
+          ->fields(array(
+            'uid' => $account->uid,
+            'course_nid' => $course->nid,
+            'page_nid' => $object->nid,
+          ))
+          ->execute();
+      }
+    }
+  }
+}
+
+/**
+ * Given a node return the corresponding course.
+ *
+ * @param object $node
+ *   This may be a course, or course content. We return access control relative
+ *   to the corresponding course.
+ *
+ * @return mixed
+ *   Either the course node or NULL in the event of no course, or more than one
+ *   associated course.
+ */
+function ghel_course_get_course($node) {
+  $course = NULL;
+  switch ($node->type) {
+    case 'ghel_course':
+      $course = $node;
+      break;
+
+    case 'ghel_course_page':
+    case 'ghel_course_section':
+    case 'quiz':
+      // This is course content, find the course and return access for that
+      // course.
+      $ghel_course = field_get_items('node', $node, 'field_ghel_course');
+      if (count($ghel_course) == 1) {
+        $course = node_load($ghel_course[0]['target_id']);
+      }
+      break;
+  }
+
+  return $course;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function ghel_course_block_view($delta = '') {
+  $block = array();
+
+  switch ($delta) {
+    case 'previous':
+      $nav = ghel_course_get_navigation();
+      if (!empty($nav['previous'])) {
+        $previous = node_load($nav['previous']);
+        // The node may have been deleted and the navigation not updated.
+        if (!empty($previous)) {
+          $block['subject'] = t('Previous');
+          $block['content'] = '<div class="course-previous">'
+            . l($nav['previous_label'],
+                'node/' . $previous->nid,
+                array(
+                  'attributes' => array(
+                    'class' => array('course-previous-link'),
+                    'title' => $previous->title,
+                  ),
+                )
+              )
+            . '</div>';
+        }
+      }
+      break;
+
+    case 'next':
+      $nav = ghel_course_get_navigation();
+      if (!empty($nav['next'])) {
+        $next = node_load($nav['next']);
+        $block['subject'] = t('Next');
+        $block['content'] = '<div class="course-next">'
+          . l($nav['next_label'],
+            'node/' . $next->nid,
+            array(
+              'attributes' => array(
+                'class' => array('course-next-link'),
+                'title' => $next->title,
+              ),
+            )
+          )
+          . '</div>';
+      }
+      break;
+
+    case 'start':
+      if ($object = menu_get_object()) {
+        if ($course = ghel_course_get_course($object)) {
+          $block = ghel_course_block_start_course($course);
+        }
+      }
+      break;
+
+    case 'create':
+      if ($object = menu_get_object()) {
+        if ($course = ghel_course_get_course($object)) {
+          if (node_access('update', $course)) {
+            $block = ghel_course_block_create_links($course);
+          }
+        }
+      }
+      break;
+
+    case 'offline':
+      if ($object = menu_get_object()) {
+        if (($course = ghel_course_get_course($object)) && !user_is_anonymous()) {
+          if (node_access('view', $course)) {
+            $block = ghel_course_block_offline($course);
+          }
+        }
+      }
+      break;
+
+    case 'links':
+//      $action_plan = menu_get_object('node');
+//      if (!empty($action_plan) && $action_plan->type == 'ghel_action_plan') {
+      $args = arg();
+      if ($args[2] == 'myresults' && $args[0] == 'node' && isset($_GET['field_ghel_course_ref'])) {
+        global $user;
+        // Block should only be displayed to author or user's with administer nodes.
+//        if ($action_plan->uid != $user->uid && !user_access('administer nodes')) {
+//          return $block;
+//        }
+//        $referred = field_get_items('node', $action_plan, 'field_ghel_course_ref');
+        $referred = $_GET['field_ghel_course_ref'];
+
+        if (!empty($referred)) {
+          $nid = $referred;
+          $course = node_load($nid);
+//          drupal_set_message(t('Congratulations! You have successfully passed the final exam in @course. You can now view your certificate, visit your Learner Home, or take another course from the menu below. You can also review your results below.', array('@course' => $course->title)), 'status', FALSE);
+        }
+        $links = array();
+
+        if (!empty($course)) {
+          $revision = ghel_course_get_revision($course);
+          $links[] = array(
+            'title' => t('View certificate'),
+            'href' => 'certificate/' . $user->uid . '/g-c-completion-' . $course->nid . '-' . $revision . '-' . $user->uid,
+             'attributes' => array(
+              'target' => '_blank',
+            ),
+          );
+
+          // Find the quiz results.
+          // First find the quiz id.
+          $pages = field_get_items('node', $course, 'field_ghel_course_navigation');
+          if (!empty($pages)) {
+            $quiz = new stdClass;
+            $quiz->type = 1;
+            while ($quiz->type != 'quiz') {
+              $qnid = array_pop($pages);
+              $quiz = node_load($qnid['target_id']);
+            }
+/*
+            if (!empty($quiz->nid)) {
+              $query = db_select('quiz_node_results', 'r')
+                ->fields('r', array('result_id'))
+                ->condition('r.nid', $quiz->nid)
+                ->condition('r.uid', $user->uid)
+                ->condition('r.time_end', 0, '!=')
+                ->orderBy('r.time_end', 'DESC');
+
+              $result = reset($query->execute()->fetchCol());
+
+              if (!empty($result)) {
+                $links[] = array(
+                  'title' => t('View quiz results'),
+                  'href' => 'node/' . $quiz->nid . '/myresults/' . $result,
+                  'attributes' => array(
+                    'target' => '_blank',
+                  ),
+                );
+              }
+            }
+*/
+          }
+
+          $webform = reset(entity_uuid_load('node', array('776ad709-00e9-4426-8f3f-4aa7cedf2423')));
+          if (!empty($webform)) {
+            $links[] = array(
+              'title' => t('Complete course evaluation'),
+              'href' => 'node/' . $webform->nid,
+              'query' => array(
+                'id' => $course->nid,
+                'name' => $course->title,
+              ),
+              'attributes' => array(
+                'target' => '_blank',
+              ),
+            );
+          }
+        }
+        $links[] = array(
+          'title' => t('Other courses'),
+          'href' => 'courses',
+          'attributes' => array(
+            'target' => '_blank',
+          ),
+        );
+
+        $links[] = array(
+          'title' => t('Learner Home'),
+          'href' => 'dashboard',
+          'attributes' => array(
+            'target' => '_blank',
+          ),
+        );
+
+        $msg = t('Congratulations! You have successfully passed the final exam in @course. You can now view your certificate, visit your Learner Home, or take another course from the menu below. You can also review your results below.', array('@course' => $course->title));
+
+        $content = array(
+          '#theme' => 'links',
+          '#links' => $links,
+          '#attributes' => array(
+            'class' => array('course-completion-links'),
+          ),
+          '#heading' => array(
+            'text' => $msg,
+            'level' => 'h4',
+          ),
+        );
+
+//        $content = $msg . $content;
+
+        $block['subject'] = t('Next Steps');
+        $block['content'] = '<div id="complete-next-steps">' . drupal_render($content) . '</div>';
+      }
+      break;
+  }
+
+  return $block;
+}
+
+/**
+ * Block content for offline section.
+ */
+function ghel_course_block_offline($course) {
+  $block['subject'] = t('Offline Reading');
+
+  $content = field_view_field('node', $course, 'field_ghel_epub', 'default');
+  $content['#prefix'] = isset($content['#prefix']) ? $content['#prefix'] : '';
+  $content['#prefix'] = '<div class="help-block"><a id="help-button" href="#!"><i class="fa fa-question-circle"></i><i class="fa fa-chevron-circle-up"></i></a><div class="help-text"><div class="inner"><h3>Help Text</h3><p>The GHeL platform supports offline reading in several formats. The offline formats do not include quizzes, but they include all other course materials.</p><ul><li>Print – use this option to get the full text of a course, and/or to print the course;</li><li>PDF – use this option to get a PDF copy of the course;</li><li>ePub – use this option to get a copy of the course you can use in most eBook readers except for an amazon Kindle. If you are using an iPhone or an iPad, ePub is the best option for you, and will open in iBooks</li><li>mobi – use this format to get a copy of the course you can use in a Kindle ereader, or in a Kindle app</li></<ul></div></div></div>';
+  $content['#suffix'] = isset($content['#suffix']) ? $content['#suffix'] : '';
+  $content['#suffix'] .= '<div class="pdf-course">' . l(t('PDF'), 'course/' . $course->nid . '/pdf') . '</div>';
+  $content['#suffix'] .= '<div class="print-course">' . l(t('Print'), 'course/' . $course->nid . '/print') . '</div>';
+
+  $block['content'] = $content;
+  return $block;
+}
+
+/**
+ * Block content for create course links.
+ */
+function ghel_course_block_create_links($course) {
+  $navigation = ghel_course_get_navigation();
+  $block['subject'] = check_plain($course->title);
+  $variables['links'] = array(
+    'ghel-add-course-section' => array(
+      'title' => t('Add new session'),
+      'href' => 'node/add/ghel-course-section',
+      'query' => array(
+        'field_ghel_course' => $course->nid,
+        'after' => $navigation['current'],
+      ),
+    ),
+    'ghel-add-course-page' => array(
+      'title' => t('Add new page'),
+      'href' => 'node/add/ghel-course-page',
+      'query' => array(
+        'field_ghel_course' => $course->nid,
+        'after' => $navigation['current'],
+      ),
+    ),
+    'ghel-add-course-quiz' => array(
+      'title' => t('Add new quiz'),
+      'href' => 'node/add/quiz',
+      'query' => array(
+        'field_ghel_course' => $course->nid,
+        'after' => $navigation['current'],
+      ),
+    ),
+  );
+  $reference = ghel_course_get_reference_link($course);
+  if (!empty($reference)) {
+    $variables['links']['ghel-add-course-resources'] = $reference;
+  }
+  $variables['attributes']['class'] = array('ghel-content-creation-links');
+  $block['content'] = theme('links', $variables);
+  return $block;
+}
+
+/**
+ * Block content for start course or course content link.
+ */
+function ghel_course_block_start_course($course) {
+  global $user;
+  $account = user_load($user->uid);
+  $revision = ghel_course_get_revision($course);
+  $block['subject'] = check_plain($course->title);
+  $page_view = ghel_course_get_last_page_view($course);
+
+  if (user_is_anonymous()) {
+    $block['content'] = l(t('Log in to take this course'), 'user', array('query' => drupal_get_destination()));
+  }
+  elseif (in_array('learner', $user->roles) || ghel_learner_mode_is_enabled()) {
+    $cert_id = 'g-c-completion-' . $course->nid . '-' . $revision . '-' . $user->uid;
+    // ghel_certificate_is_current checks for published status:
+    $finished = achievements_unlocked_already('g-c-completion-' . $course->nid . '-' . $revision, $user->uid) && ghel_certificate_is_current($cert_id);
+
+    $navigation = field_get_items('node', $course, 'field_ghel_course_navigation');
+    // Make sure we have at least one item in our course navigationa.
+    if (count($navigation) >= 1) {
+      if ($finished) {
+        $block['content'] = l(t('View Certificate'), 'certificate/' . $user->uid . '/'. $cert_id);
+        $block['content'] .= '&nbsp;' . l(t('Course Content'), 'node/' . $navigation[0]['target_id']);
+      }
+      else if (!empty($page_view)) {
+        $block['content'] = l(t('Resume Course'), 'node/' . $page_view);
+      }
+      else {
+        $block['content'] = l(t('Start Course'), 'node/' . $navigation[0]['target_id']);
+      }
+    }
+  }
+  else {
+    // Not anon, non learner.
+    $navigation = field_get_items('node', $course, 'field_ghel_course_navigation');
+    $block['content'] = l(t('Course Content'), 'node/' . $navigation[0]['target_id']);
+  }
+
+  return $block;
+}
+
+/**
+ * Determ the proper navigation for the given node, or the current page.
+ *
+ * @param object $node
+ *   A node to determine navigation for. This doesn't have to be a course, but
+ *   is expected to be in a course.
+ *
+ * @return array
+ *   An array keyed by;
+ *    nav: indicates the contents of field_ghel_course_navigation for the
+ *      related coruse
+ *    previous: if there is a previous item in the course this will be its nid
+ *    next: if there is a next item in the course this will be its nid
+ *    current: if we are on a course page this will be the *index* of the item
+ *      in the course navigation
+ *   If the node or current node from menu_get_object() is not related to a
+ *   course this will return an empty array().
+ */
+function ghel_course_get_navigation($node = NULL) {
+  $cache = &drupal_static(__FUNCTION__);
+  if (empty($node)) {
+    $node = menu_get_object();
+  }
+
+  $navigation = array();
+  if (!empty($node)) {
+    if (empty($cache[$node->nid])) {
+      if ($node->type == 'ghel_course') {
+        $navigation['nav'] = field_get_items('node', $node, 'field_ghel_course_navigation');
+        $nav['current'] = -1;
+      }
+      elseif (!empty($node->field_ghel_course)) {
+        $ghel_course = field_get_items('node', $node, 'field_ghel_course');
+        $tmp = entity_load('node', array($ghel_course[0]['target_id']));
+        $course = reset($tmp);
+        $navigation['nav'] = field_get_items('node', $course, 'field_ghel_course_navigation');
+
+        if (!empty($navigation['nav'])) {
+          foreach ($navigation['nav'] as $index => $item) {
+            if ($item['target_id'] == $node->nid) {
+              $navigation['current'] = $index;
+              $navigation['current_type'] = $node->type;
+              if ($index !== 0) {
+                $navigation['previous'] = $navigation['nav'][$index - 1]['target_id'];
+                $navigation['previous_label'] = ($node->type == 'quiz') ? t('Previous (exit quiz)') : t('Previous');
+              }
+
+              if ($index < (count($navigation['nav']) - 1)) {
+                $navigation['next'] = $navigation['nav'][$index + 1]['target_id'];
+                $navigation['next_label'] = ($node->type == 'quiz') ? t('Next (exit quiz)') : t('Next');
+              }
+            }
+          }
+        }
+      }
+      $cache[$node->nid] = $navigation;
+    }
+    return $cache[$node->nid];
+  }
+
+  return array();
+}
+
+/**
+ * Implements hook_formblock_field_form_object_alter().
+ */
+function ghel_course_formblock_field_form_object_alter(&$entity, &$instance) {
+  // We want to load the course object for any node in a course.
+  if (!empty($entity) && $instance['field_name'] == 'field_ghel_course_navigation' && $entity->epub_export_type == 'node') {
+    $entity = ghel_course_get_course($entity);
+  }
+}
+
+/**
+ * Implements hook_node_insert().
+ */
+function ghel_course_node_insert($node) {
+  $types = array('ghel_course_section', 'ghel_course_page', 'quiz');
+
+  // If this is a new node of the given type make sure to add it to
+  // corresponding course.
+  if (in_array($node->type, $types)) {
+    $course = field_get_items('node', $node, 'field_ghel_course');
+    if (!empty($course)) {
+      $nid = $course[0]['target_id'];
+      $course = node_load($nid);
+      if (!empty($node->ghel_course_nav_after)) {
+        // A specific index was provided add it at the appropriate location.
+        $course->field_ghel_course_navigation[$course->language] = array_merge(
+          array_slice($course->field_ghel_course_navigation[$course->language], 0, $node->ghel_course_nav_after, TRUE),
+          array(array('target_id' => $node->nid)),
+          array_slice($course->field_ghel_course_navigation[$course->language], $node->ghel_course_nav_after, count($course->field_ghel_course_navigation[$course->language]) - 1, TRUE)
+        );
+      }
+      else {
+        // No specified index add it at the end.
+        $course->field_ghel_course_navigation[$course->language][] = array('target_id' => $node->nid);
+      }
+      node_save($course);
+    }
+  }
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+function ghel_course_node_delete($node) {
+  if ($node->type == 'ghel_course') {
+    ghel_achievements_delete($node);
+    ghel_achievements_stack_pop($node->nid);
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function ghel_course_form_alter(&$form, &$form_state, $form_id) {
+
+  if (strpos($form_id, 'editablefields_form') !== FALSE && strpos($form_id, 'field_ghel_course_navigation') !== FALSE) {
+    $language = $form['field_ghel_course_navigation']['#language'];
+    $form['field_ghel_course_navigation'][$language]['#after_build'][] = 'ghel_course_afterbuild';
+  }
+
+  // Add a "confirm button to the workflow tab".
+  if ($form_id == 'workflow_tab_form' && (isset($form['node']['#value']))) {
+    // Hide workflow scheduling as we don't want this to interfere
+    $form['workflow']['workflow_scheduled']['#access'] = FALSE;
+    $form['workflow']['workflow_scheduled_date']['#access'] = FALSE;
+    $form['workflow']['workflow_scheduled_hour']['#access'] = FALSE;
+
+    if ($form['node']['#value']->type == 'ghel_course') {
+      // Only show the submit button if this is the second submission.
+      $form['submit']['#access'] = (!form_get_errors() && !empty($form_state['input']['ghel_preview']));
+
+      $form['ghel_course_previous_workflow'] = array(
+        '#type' => 'value',
+        '#value' => $form['node']['#value']->workflow,
+      );
+
+      // Add a "preview" button to force the confirmation.
+      $form['workflow_preview'] = array(
+        '#access' => empty($form_state['input']['ghel_preview']),
+        '#type' => 'submit',
+        '#name' => 'ghel_preview',
+        '#value' => t('Preview Workflow Transition'),
+        '#weight' => 10,
+      );
+      $form['#validate'][] = 'ghel_course_workflow_form_validate';
+      $form['#submit'][] = 'ghel_course_workflow_change_submit';
+    }
+  }
+
+  // Adjust navigational course node forms.
+  switch ($form_id) {
+    case 'ghel_course_section_node_form':
+    case 'ghel_course_page_node_form':
+    case 'quiz_node_form':
+      // We use the after parameter to determine where we should place our node.
+      if (!empty($_GET['after'])) {
+        $form['ghel_course_nav_after'] = array(
+          '#type' => 'value',
+          '#value' => (int) $_GET['after'],
+        );
+      }
+      break;
+    case 'ghel_course_node_form':
+      $form['field_ghel_revision'][LANGUAGE_NONE]['#after_build'][] = 'ghel_course_alter_revision';
+      break;
+  }
+}
+
+function ghel_course_alter_revision($element, &$form_state) {
+  // Ensure course form starts at zero
+  if (empty($element[0]['value']['#default_value'])) {
+    $element[0]['value']['#default_value'] = 0;
+    $element[0]['value']['#value'] = $element[0]['value']['#default_value'];
+  }
+
+  $element['#access'] = FALSE;
+  return $element;
+}
+
+/**
+ * Helper function to create a "confirm" dialog for workflow submission.
+ */
+function ghel_course_workflow_form_validate($form, &$form_state) {
+  if (isset($form_state['input']['ghel_preview'])) {
+    form_set_error('workflow', t('Changing course workflow state will change the workflow state of all content in the course. If the course is going "under review" this process will; reset all user quizzes for the course, and if necessary related program certificates. Please confirm by pressing "update workflow."'));
+  }
+}
+
+/**
+ * Batch submit handler to manage course workflow transition
+ *
+ * This is necessary as the data cleanup required during a workflow transition
+ * results in several additional workflow transitions for each course content
+ * type, and corresponding data cleanup for all quizzes and achievements.
+ */
+function ghel_course_workflow_change_submit($form, &$form_state) {
+  $course = $form_state['values']['node'];
+  $previous = $form_state['values']['ghel_course_previous_workflow'];
+
+  $target_state = $form_state['values']['workflow'];
+
+  if (!empty($course)) {
+
+    $batch = array(
+        'title' => t('Cleaning up course activity and adjusting permissions'),
+        'init_message' => t('Course cleanup is initializing.'),
+        'operations' => array(),
+    );
+
+    // What states need cleanup when we transition from them.
+    $sids = array(
+      GHEL_WORKFLOW_STATE_PUBLISHED,
+      GHEL_WORKFLOW_STATE_ARCHIVED,
+    );
+
+    switch($target_state) {
+      case GHEL_WORKFLOW_STATE_UNDER_REVIEW:
+        $batch['operations'][] = array(
+          'ghel_course_delete_quiz_attempts',
+          array($course),
+        );
+        $batch['operations'][] = array(
+          'ghel_course_reset_page_views',
+          array($course),
+        );
+        $batch['operations'][] = array(
+          'ghel_achievements_workflow_change_ops',
+          array($course, 'course_under_review'),
+        );
+        break;
+      case GHEL_WORKFLOW_STATE_PUBLISHED:
+        $batch['operations'][] = array(
+          'ghel_course_increment_revision',
+          array($course),
+        );
+        $batch['operations'][] = array(
+          'ghel_achievements_workflow_change_ops',
+          array($course, 'course_published'),
+        );
+        break;
+    }
+
+    // All transitions should have roles adjusted.
+    $batch['operations'][] = array(
+      'ghel_course_transition_roles',
+      array($course, $target_state),
+    );
+
+    batch_set($batch);
+  }
+}
+
+/**
+ * This function modifies the sidebar area that controls course content ordering via editable fields.
+ */
+function ghel_course_afterbuild($element, &$form_state) {
+  $states = &drupal_static(__FUNCTION__);
+
+  foreach (element_children($element) as $child) {
+    $classes = array();
+    if (isset($element[$child]['target_id']) && $element[$child]['target_id']['#type'] == 'textfield') {
+      preg_match('/.*\(([0-9]+)\)/', $element[$child]['target_id']['#default_value'], $matches);
+      if (!empty($matches[1])) {
+        $node = node_load($matches[1]);
+        $classes[] = $element[$child]['target_id']['#entity_type'] . '--' . str_replace('_', '-', $node->type);
+
+        // In this context we don't want the user to change any references, just
+        // the weights.
+        $element[$child]['target_id']['#access'] = FALSE;
+
+        if (empty($states[$node->type])) {
+          $workflow = workflow_get_workflow_type_map_by_type($node->type);
+
+          foreach (workflow_get_workflow_states() as $data) {
+            $states[$node->type][$data->sid] = check_plain(t($data->state));
+          }
+        }
+
+        //Class naming includes state for those CT under workflow moderation.
+        if(!$current = workflow_node_current_state($node)){
+          $current_workflow = NULL;
+        }else{
+          $current_workflow = $states[$node->type][$current];
+        }
+
+        if ($current_workflow) {
+          $classes[] = 'ghel-' . strtolower(preg_replace("/[^a-zA-Z0-9]+/", "-",$current_workflow));
+        }
+        $classes[] = "course-nav";
+
+        $element[$child]['title'] = array(
+          '#theme' => 'ghel_toc_widget_nav_row',
+          '#link' => l($node->title, 'node/' . $node->nid),
+          '#edit_link' => l(t('Edit'), 'node/' . $node->nid . '/edit'),
+          '#workflow' => check_plain($current_workflow),
+          '#options' => array(
+            'attributes' => array(
+              'class' => $classes,
+            ),
+          ),
+        );
+        $element[$child]['class'] = $classes;
+      }
+    }
+
+    if (empty($element[$child]['target_id']['#value'])) {
+      // Remove the add_more.
+      $uri = request_uri();
+      $uri = trim($uri, '/');
+      $path = explode('/', $uri);
+      // Leave the add more on the structure tabe node/NID/structure.
+      if (!(count($path) == 3 && $path[0] == 'node' && $path[2] == 'structure')) {
+        unset($element[$child]);
+      }
+    }
+  }
+  return $element;
+}
+
+/**
+ * Delete all quiz attemps/results for a given course.
+ *
+ * @var object $course
+ *   Course node object to remove quiz results for.
+ */
+function ghel_course_delete_quiz_attempts($course) {
+  // Gather all quiz nids in this course and then pass remove attempts.
+  $query = new EntityFieldQuery();
+  $result = $query->entityCondition('entity_type', 'node')
+    ->fieldCondition('field_ghel_course', 'target_id', $course->nid)
+    ->execute();
+
+  if (isset($result['node'])) {
+    $query = new EntityFieldQuery();
+    $quizzes = $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'quiz')
+    ->propertyCondition('nid', array_keys($result['node']));
+    if (isset($quizzes->node)) {
+      ghel_base_delete_quiz_results(array_keys($quizzes['node']));
+    }
+  }
+}
+
+/**
+ * Implements hook_views_pre_build().
+ */
+function ghel_course_views_pre_build(&$view) {
+
+  if ($view->name == 'ghel_courses') {
+    $view->override_path = $_GET['q'];
+  } // if
+
+} // ghel_course_views_pre_build
+
+/**
+ * Return an array of valid course content types.
+ *
+ * @param bool $questions
+ *   Whether or not to include quiz question types.
+ * @return array
+ *   The machine names for course content types.
+ */
+function ghel_course_get_course_content_types($questions = FALSE) {
+  $types = array(
+    'ghel_course_page',
+    'ghel_course_section',
+    'quiz',
+  );
+
+  if ($questions) {
+    $types[] = 'matching';
+    $types[] = 'multichoice';
+    $types[] = 'truefalse';
+  }
+  return $types;
+}
+
+
+/**
+ * Given a course return the existing ghel_reference node or FALSE.
+ *
+ * @param object $course
+ *  The course to return the reference for.
+ * @return mixed
+ *   Fully loaded reference node, or FALSE if none exists
+ */
+function ghel_course_get_reference($course) {
+  $reference = FALSE;
+  $query = new EntityFieldQuery();
+  $query
+    ->entityCondition('entity_type', 'node')
+    ->propertyCondition('type', 'ghel_reference')
+    ->fieldCondition('field_ghel_course', 'target_id', $course->nid);
+  $result = $query->execute();
+
+  if (!empty($result['node'])) {
+    $keys = array_keys($result['node']);
+    $reference = node_load(reset($keys));
+  }
+
+
+  return $reference;
+}
+
+/**
+ * Return the appropriate link for adding/editing resources.
+ *
+ * @param  $course
+ *   A fully populated course node.
+ */
+function ghel_course_get_reference_link($course) {
+  $reference = ghel_course_get_reference($course);
+
+  if (!empty($reference)) {
+    $link = array(
+      'title' => t('Edit Reference'),
+      'href' => 'node/' . $reference->nid . '/edit',
+    );
+  }
+  else {
+    $link = array(
+      'title' => t('Add Reference'),
+      'href' => 'node/add/ghel-reference'
+    );
+  }
+
+  return $link;
+}
+
+/**
+ * Returns the current revision for a course.
+ *
+ * @param object $course
+ *   Fully loaded course node object.
+ * @return int
+ *   The revision number for the course, or zero.
+ */
+function ghel_course_get_revision($course) {
+  $revision = field_get_items('node', $course, 'field_ghel_revision');
+  if (empty($revision[0]['value'])) {
+    return 0;
+  }
+  return $revision[0]['value'];
+}
+
+/**
+ * Returns the nid of the last viewed page in a course or 0
+ */
+function ghel_course_get_last_page_view($course, $account = NULL) {
+  global $user;
+  if (empty($account)) {
+    $account = $user;
+  }
+
+  $page_nid = db_select('ghel_course_last_page_view', 'pv')
+    ->fields('pv', array('page_nid'))
+    ->condition('uid', $account->uid)
+    ->condition('course_nid', $course->nid)
+    ->execute()
+    ->fetchCol();
+
+  if (!empty($page_nid)) {
+    return reset($page_nid);
+  }
+
+  return 0;
+}
+
+/**
+ * Reset page views for a course.
+ */
+function ghel_course_reset_page_views($course) {
+  db_delete('ghel_course_last_page_view')
+    ->condition('course_nid', $course->nid)
+    ->execute();
+}
+
+/**
+ * Returns all content in a course.
+ *
+ * @param  $course object
+ *   The course to return the content for.
+ */
+function ghel_course_get_course_content($course) {
+  $types = ghel_course_get_course_content_types();
+
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', $types)
+    ->fieldCondition('field_ghel_course', 'target_id', $course->nid);
+  $result = $query->execute();
+
+  $course_content = array();
+
+  if (isset($result['node'])) {
+    $course_content = node_load_multiple(array_keys($result['node']));
+  }
+  return $course_content;
+}
+
+/**
+ * Calls appropriate code to transition course roles from privileged to
+ * un-privileged roles where necessary (and vice-versa)
+ *
+ * @param   $course object
+ *   The course object for which roles should be transitioned
+ * @param   $target_state
+ *   The target state ID we are transitioning to.
+ */
+function ghel_course_transition_roles($course, $target_state) {
+  switch($target_state) {
+    case GHEL_WORKFLOW_STATE_UNDER_REVIEW:
+    case GHEL_WORKFLOW_STATE_FEEDBACK:
+      ghel_course_transition_role($course, GHEL_COURSE_ADMINISTRATOR, GHEL_COURSE_ADMINISTRATOR_UNPRIVILEGED);
+      break;
+    case GHEL_WORKFLOW_STATE_PUBLISHED:
+    case GHEL_WORKFLOW_STATE_ARCHIVED:
+      ghel_course_transition_role($course, GHEL_COURSE_ADMINISTRATOR_UNPRIVILEGED, GHEL_COURSE_ADMINISTRATOR);
+      break;
+  }
+}
+
+/**
+ * Swaps given og roles with users.
+ *
+ * For all users in the given course with the $drop_role remove the
+ * role and add the $add_role.
+ *
+ * @param  object $course
+ *   The course to add/drop roles for
+ * @param  int $add_role
+ *   The role to add to given users with $drop_role
+ * @param  int $drop_role
+ *   The role to match users by and remove.
+ */
+function ghel_course_transition_role($course, $add_role, $drop_role) {
+  $members = db_select('og_users_roles', 'ur')
+      ->fields('ur')
+      ->condition('ur.rid', $drop_role)
+      ->condition('ur.group_type', 'node')
+      ->condition('ur.gid', $course->nid)
+      ->execute();
+
+  if (!empty($members)) {
+    foreach ($members as $member) {
+      og_role_revoke('node', $course->nid, $member->uid, $drop_role);
+      og_role_grant('node', $course->nid, $member->uid, $add_role);
+
+    }
+  }
+}
+
+/**
+ * Increment and save the course revision counter.
+ */
+function ghel_course_increment_revision($course) {
+  // Course is published increment the revision increment the course revision.
+  $course->field_ghel_revision[LANGUAGE_NONE][0]['value']++;
+
+  node_save($course);
+}

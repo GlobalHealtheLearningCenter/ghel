@@ -1,0 +1,124 @@
+
+
+
+//learner home page/dashboard
+
+.region-content{
+    #block-ghel-certificate-courses-in-progress{
+        background-color: #fff;
+        @include box-shadow(rgba(0, 0, 0, 0.1)1px 1px 4px -1px );
+        padding:10px 10px 0;
+        margin:0;
+        h2.block-title{
+            color:$secondary;
+        }
+        ul{
+            list-style: none;
+            border:none;
+            li{
+                padding: 0;
+                margin: 0;
+                border: none;
+                a{
+                    margin: 0 -10px;
+                    padding: 15px 10px;
+                    display: block;
+                    border-top:1px solid #eee;
+                    background-color: #fff;
+                    -ms-transition: background-color 0.3s ease;
+                    -moz-transition: background-color 0.3s ease;
+                    -webkit-transition: background-color 0.3s ease;
+                    transition: background-color 0.3s ease;
+                    &:hover{
+                        background-color:#f9f9f9;
+                    }
+                    &:active, 
+                    &.active {
+                        background-color: #314e88;
+                        color: #FFF;
+                    }
+                }
+                &:before{
+                    content:'';
+                    display: none;
+                }
+            }
+        }
+    }
+    #block-views-ghel-author-my-courses-block-1,
+    #block-views-ghel-author-my-courses-block-2{
+        background-color: #fff;
+        @include box-shadow(rgba(0, 0, 0, 0.1)1px 1px 4px -1px );
+        padding:10px 10px 0;
+        margin:0;
+        h2.block-title{
+            color:$secondary;
+        }
+        ul{
+            list-style: none;
+            border:none;
+            li.article-item{
+                padding: 0;
+                margin: 0;
+                border: none;
+
+                margin: 0 -10px;
+                padding: 15px 10px;
+                display: block;
+                border-top:1px solid #eee;
+                background-color: #fff;
+                -ms-transition: background-color 0.3s ease;
+                -moz-transition: background-color 0.3s ease;
+                -webkit-transition: background-color 0.3s ease;
+                transition: background-color 0.3s ease;
+                &:before{
+                    content:'';
+                    display: none;
+                }
+            }
+        }
+    }   
+    #block-views-ghel-author-my-courses-block-1{
+        margin-top: 20px;
+    }
+
+    #block-views-ghel-author-my-feedback-block{
+        background: #E2ECF0;
+        padding: 10px;
+        margin: 20px 0;
+        h2.block-title{
+            margin: 0 -10px;
+            border-bottom: 1px solid #c9c9c9;
+            padding: 0 10px 8px 10px;
+        }
+        ul.recent-feedback{
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            li{
+                margin: 0 -10px;
+                border-bottom: 1px solid #ddd;
+                padding: 10px;
+                em{
+                    color:$secondary;
+                }
+            }
+        }
+    }
+}
+
+.view-ghel-author-tools{
+    padding:0;
+    margin:20px 0;
+}
+
+#course_blocks_dashboard{
+    background-color: #fff;
+    @include box-shadow(rgba(0, 0, 0, 0.1)1px 1px 4px -1px );
+    padding: 10px;
+    margin-bottom: 20px;
+    h2.block-title{
+        color:$secondary;
+        margin: 20px 0 0;
+    }
+}

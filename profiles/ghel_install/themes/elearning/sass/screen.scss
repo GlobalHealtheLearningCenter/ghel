@@ -1,0 +1,86 @@
+// Wrap all media queries in a .lt-ie9 class
+$breakpoint-no-queries: false;
+$breakpoint-no-query-wrappers: true;
+
+// This needs to come above the compass plugins.
+@import "partials/vars";
+
+//  Compass
+@import "compass/support";
+@import "compass/css3";
+@import "compass/typography";
+
+// Frameworks
+@import "breakpoint";
+@import "zen";
+
+//  Partials - Variables, functions and mixins specific to SASS
+$icon-right-position: 100%;
+@import "icon/*.png";     // Compass sprite support
+@import "partials/blend-mode";
+@import "partials/functions";
+@import "partials/mixins";
+@import "partials/extends";
+
+//  Global - Generalized global styles
+@import "global/normalize";
+@import "global/base";
+@import "global/tables";
+@import "global/forms";
+@import "global/layout";
+
+//  Elements - Styles specific to elements
+@import "elements/navigation";
+@import "elements/buttons";
+@import "elements/headings";
+@import "elements/fields";
+@import "elements/lists";
+@import "elements/images";
+@import "elements/meta";
+@import "elements/learner_toggle";
+
+//  Components - Styles specific to components
+@import "components/action-plan";
+@import "components/attribute-selector";
+@import "components/authors";
+@import "components/blocks";
+@import "components/courses";
+@import "components/credits";
+@import "components/dashboard";
+@import "components/glossary";
+@import "components/header";
+@import "components/main";
+@import "components/encouragements";
+@import "components/faq";
+@import "components/featured";
+@import "components/feedback";
+@import "components/footer";
+@import "components/lang_dropdown";
+@import "components/links";
+@import "components/local-tasks";
+@import "components/messages";
+@import "components/modes";
+@import "components/types";
+@import "components/reports";
+@import "components/pager";
+@import "components/search";
+@import "components/sharethis";
+@import "components/comments";
+@import "components/marquee";
+@import "components/mobile-nav";
+@import "components/course-nav";
+@import "components/course-structure";
+@import "components/above-content";
+@import "components/views";
+@import "components/styleguide";
+@import "components/course-workflow";
+@import "components/user";
+@import "components/translations";
+@import "components/community";
+@import "components/discussions";
+@import "components/resource";
+@import "components/program-group";
+@import "components/study-group";
+
+
+@import "override/_sqm-overrides.scss"

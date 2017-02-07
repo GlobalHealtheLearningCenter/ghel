@@ -1,0 +1,249 @@
+// Article lists
+
+%article-list-bulleted {
+  padding-left: 30px;
+
+  &:before {
+    content: "\2022";
+    display: block;
+    font-size: 18px;
+    float: left;
+    margin-left: -16px;
+    color: $orange;
+  }
+}
+
+.article-list {
+  padding: 0;
+  border-bottom: 1px solid $border-color;
+}
+
+.article-item {
+  @include leading-border(1px, 2);
+  padding-bottom: rhythm(2);
+  display: block;
+  border-color: $border-color;
+
+  &.is-bulleted {
+    @extend %article-list-bulleted;
+  }
+}
+
+.no-bullets {
+  margin: 0;
+  padding: 0;
+
+  > li {
+    list-style: none;
+  }
+}
+
+// this may be too general
+article.node {
+  ul > li, ol > li {
+    list-style-position: inside;
+  }
+}
+
+// Discussion lists
+
+%discussion-list {
+  @extend .article-list;
+
+  .views-table {
+    display: block;
+    margin-bottom: 0;
+
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      display: table;
+      margin-bottom: rhythm(2);
+    }
+  }
+
+  thead {
+    display: none; // Hidden for mobile, when all cells are stacked
+
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      display: table-header-group;
+    }
+  }
+
+  tr.odd,
+  tr.even {
+    display: block;
+    background: inherit;
+    @include trailer(6);
+
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      display: table-row;
+      @include trailer(0);
+    }
+  }
+
+  .views-field {
+    @extend .article-item;
+    display: block;
+    padding-left: 0;
+    padding-right: 0;
+
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      display: table-cell;
+      padding-left: rhythm(2);
+      padding-right: rhythm(2);
+    }
+  }
+
+  .views-field-title {
+    @include leading-border(5px);
+    padding-left: 0;
+
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      @include leading-border(1px);
+    }
+
+    h3 {
+      @include leader(2);
+      @include trailer(2);
+
+      @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+        @include leader(0);
+      }
+    }
+  }
+
+  .views-field-picture {
+    @include clearfix;
+
+    span {
+      display: block;
+      width: 100px; // matches "thumbnail" image style
+      float: right;
+      text-align: right;
+
+      @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+        float: none;
+        text-align: left;
+      }
+    }
+
+    p {
+      @include trailer(0);
+    }
+
+    p::before {
+      content: "Author: ";
+      font-weight: bold;
+
+      @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+        content: "";
+      }
+    }
+  }
+
+  .views-field-last-updated {
+
+    p {
+      @include trailer(0);
+    }
+  }
+
+  .views-field-comment-count {
+
+    p {
+      @include trailer(0);
+    }
+  }
+
+  .views-field-title-1,
+  .views-field-field-ghel-post-in {
+    padding-right: 0;
+
+    p {
+      @include trailer(0);
+    }
+  }
+
+  .more-link {
+    @extend %more-link-right;
+  }
+}
+
+%discussion-list-striped {
+  tr.odd  { background-color: $color-table-odd; }
+  tr.even { background-color: $color-table-even; }
+
+  .views-field-title,
+  .views-field-picture,
+  .views-field-last-updated,
+  .views-field-comment-count,
+  .views-field-comment-count,
+  .views-field-title-1,
+  .views-field-field-ghel-post-in {
+    padding-left: rhythm(2);
+    padding-right: rhythm(2);
+  }
+}
+
+// Member grids
+
+%member-grid {
+
+  .views-view-grid {
+    display: block;
+
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      display: table;
+    }
+  }
+
+  tbody {
+    display: block;
+    width: 100%;
+
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      display: table-row-group;
+    }
+  }
+
+  // A bug in views' grid style prevents us from adding any common class to each row
+  tr {
+    display: block;
+    width: 100%;
+    background: inherit;
+    @include trailer(0);
+
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      display: table-row;
+    }
+  }
+
+  .grid-item {
+    @extend %clearfix;
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
+
+    @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+      display: table-cell;
+      width: auto;
+      padding-left: rhythm(2);
+      padding-right: rhythm(2);
+    }
+  }
+
+  .views-field {
+
+  }
+
+  .views-field-picture {
+    width: 67px; // matches image style
+    float: left;
+    margin-right: rhythm(1);
+  }
+
+  .more-link {
+    @extend %more-link-right;
+  }
+}

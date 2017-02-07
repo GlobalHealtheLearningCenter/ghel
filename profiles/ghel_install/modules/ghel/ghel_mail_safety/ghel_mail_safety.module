@@ -1,0 +1,74 @@
+<?php
+
+/**
+ * This module uses a Drupal variable, ghel_safety, to determine whether or
+ * not to send emails. To use anything other than the default of -1, the
+ * variable must be set in the site's settings.php file, e.g.:
+ *
+ * $conf['ghel_safety'] = 2;
+ *
+ * Safety settings:
+ *  -1: Completely disable any and all GHeL module emails. This is the setting
+ *      that should be on production and saved to git if none of the GHeL mail
+ *      functions are ready for prod yet.
+ *   0: All safeties off -- Dangerous; only set this on local dev!
+ *   1: Standard safety -- Compare URL to expected production URL; abort if
+ *      mismatched. This is the value that should be saved to git once all
+ *      GHeL email modules are completed, tested and working correctly.
+ *   2: Testing safety -- Standard URL check, but allow mail to be sent to safe
+ *      roles, eg admins. Set to this when testing email on dev, stage
+ */
+
+define('GHEL_SAFETY_SAFE_URL', 'https://www.globalhealthlearning.org');
+define('GHEL_SAFETY_CURRENT_URL', (!empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['SERVER_NAME']);
+define('GHEL_SAFETY_SAFE_ROLES', 'site administrator|testing');
+define('GHEL_SAFETY_MAX_ACCESS_TIME', 31536000); // one year
+
+/**
+ * Implements hook_mail_alter().
+ */
+function ghel_mail_safety_mail_alter(&$message) {
+  if($message['send'] == false) {
+    return; // email is already not going to be sent, we don't have to do anything
+  }
+
+  if(strpos($message['id'], 'ghel') === false) {
+    return; // not a ghel-specific email, let it continue on its merry way
+  }
+
+  switch(variable_get('ghel_safety', -1)) {
+    case -1: // Full safety; disable all GHeL email
+      $message['send'] = false;
+      return;
+    case 0: // Safeties off
+      return;
+    case true: // For all safeties >0
+      if (GHEL_SAFETY_SAFE_URL != GHEL_SAFETY_CURRENT_URL) {
+        $message['send'] = false;
+      }
+      else {
+        return; // All positive safety settings should always send mail on prod
+      }
+    case 2:
+      $safe_role_ids = array();
+      foreach(explode('|', GHEL_SAFETY_SAFE_ROLES) as $safe_role) {
+        $safe_role_ids[] = user_role_load_by_name($safe_role)->rid;
+      }
+      $user = user_load_by_mail($message['to']);
+      foreach($safe_role_ids as $safe_role_id) {
+        if(user_has_role($safe_role_id, $user)) {
+          $message['send'] = true; // user has safe role, send the email
+        }
+      }
+  }
+}
+
+/**
+ * Returns true if user last accessed the site past the given cutoff in seconds
+ */
+function ghel_mail_safety_user_access_past_cutoff($user, $cutoff = GHEL_SAFETY_MAX_ACCESS_TIME) {
+  if(time() - $user->access > $cutoff) {
+    return true;
+  }
+  return false;
+}

@@ -1,0 +1,93 @@
+.ghel-certificate {
+  font-family:Arial, Helvetica, sans-serif;
+  font-size:12px;
+  color:#000066;
+  line-height:12px;
+  text-decoration:none;
+}
+
+table, table td {
+  border-collapse: collapse;
+  margin: 0px;
+  padding: 0px;
+  border: 0px;
+}
+
+.page-two {
+  page-break-before: always
+}
+
+td.ghel-cert-header, td.ghel-cert-footer {
+  height: 19px;
+  width: 668px;
+}
+
+td.cert-footer {
+  vertical-align: top;
+}
+
+td.ghel-cert-left, td.ghel-cert-right {
+  height: 100%;
+}
+
+td.ghel-cert-content {
+  text-align: center;
+  height: 100%;
+  width: 111px; 
+}
+
+.addendum, .verify {
+  font-family:tahoma;
+  font-size:13px;
+  color:#7f7f7f;
+  font-weight:bold;
+}
+
+.verify-header, .by-line {
+  font-style: italic;
+}
+
+.name {
+  font-family:tahoma;
+  font-size:32px;
+  color:#000000;
+  font-weight:bold;
+  line-height:40px;
+  font-style: italic;
+}
+
+.date, .course-name, .course-list {
+  font-family:tahoma;
+  font-size:13px;
+  color:#000000;
+  font-weight:bold;
+  margin-top: 10px;
+}
+
+.revision {
+  font-family:tahoma;
+  font-size:6px;
+  color:#000000;
+  font-weight:bold;
+  margin-top: 10px;
+}
+
+.certificates {
+  list-style-type: none;
+  text-align: left;
+  padding: 12px;
+}
+
+.signature-1 {
+  float: left;
+}
+
+.signature-2 {
+  float: right;
+}
+
+.sponsors {
+  margin-top: 30px;
+}
+
+

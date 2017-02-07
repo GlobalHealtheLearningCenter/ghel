@@ -1,0 +1,43 @@
+// Translations Page
+// -----------------
+
+#views-exposed-form-ghel-trans-views-block {
+  @extend .views-exposed-form;
+}
+
+.view-ghel-trans-views {
+  @extend .view-ghel-courses;
+
+  .views-exposed-form {
+    @include breakpoint($tablet, $no-query: '.lt-ie9') {
+      .views-exposed-widget,
+      .views-widget,
+      label {
+        margin-bottom: 0;
+      }
+
+      select {
+        padding: 0 0 0 2px;
+      }
+
+      .views-widget .form-item {
+        margin-bottom: 0;
+
+        input {
+          margin-bottom: 0;
+        }
+      }
+    }
+  }
+
+  .field-ghel-language {
+    .field-label {
+      @include adjust-font-size-to($fs-m);
+      margin-bottom: rhythm(2);
+    }
+  }
+
+  ul.field-items {
+    margin-top: rhythm(2);
+  }
+}

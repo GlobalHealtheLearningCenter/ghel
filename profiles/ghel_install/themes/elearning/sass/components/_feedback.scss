@@ -1,0 +1,42 @@
+.region-tab-feedback .region-content {
+ // position: relative;
+}
+
+#comment-container {
+  @include box-sizing(border-box);
+  width: 100%;
+  height: 100%;
+  padding: rhythm(4) $w-gutter;
+  position: absolute;
+  top: 0;
+  background-color: $white;
+  z-index: 10;
+  overflow: auto;
+
+  &.is-collapsed {
+    @include transition-property(left);
+    @include transition-duration(.5s);
+    left: 110%;
+  }
+
+  &.is-expanded {
+    @include transition-property(left);
+    @include transition-duration(.5s);
+    left: 0%;
+  }
+}
+
+#comment-back {
+  @extend %button;
+  @extend %button-blue;
+  @extend %button-medium;
+  display: block;
+  float: left;
+  margin-bottom: rhythm(4, $fs-s);
+}
+
+#comment-title {
+  @include adjust-font-size-to($fs-xxxl);
+  clear: left;
+  margin-top: rhythm(4, $fs-xxxl);
+}

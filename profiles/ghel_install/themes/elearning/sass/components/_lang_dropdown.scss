@@ -1,0 +1,20 @@
+#block-lang-dropdown-language {
+  display:block;
+  position:absolute;
+  float:right;
+  top:50px;
+  right:10px;
+  padding-top: rhythm(1);
+  @include breakpoint($mobile-nav + 175px, $no-query: '.lt-ie9') {
+    display:inline;
+    float:left;
+    position:static;
+    }
+  select {
+    //@include border-radius(24px/2);
+    @include adjust-font-size-to(12px, 3);
+    color: $gray-dark;
+    padding:2px 5px;
+    width:145px !important;
+  }
+}

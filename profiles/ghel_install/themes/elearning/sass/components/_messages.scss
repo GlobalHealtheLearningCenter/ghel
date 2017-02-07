@@ -1,0 +1,27 @@
+//
+// @file
+// Drupal message styles.
+
+#messages {
+  @include legacy-pie-clearfix;
+  font-weight: 600;
+  padding: rhythm(4) $w-gutter-half rhythm(1);
+}
+
+.messages {
+	@include border-radius(0px);
+	margin-bottom: rhythm(1);
+	padding: rhythm(1) $w-gutter-half;
+  color: $white;
+
+  a {
+    color: $white;
+    font-weight: bold;
+  }
+
+  &.error    { background-color: $red; }
+  &.warning  { background-color: $orange; }
+  &.status   { background-color: $green; }
+}
+
+

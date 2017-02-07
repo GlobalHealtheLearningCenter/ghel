@@ -1,0 +1,159 @@
+<?php
+
+define('GHEL_REMINDER_ONE_MONTH', 2592000);
+define('GHEL_REMINDER_THREE_MONTHS', 7776000);
+define('GHEL_REMINDER_MESSAGE_SUBJECT', '[!site] Complete free online courses on the Global Health eLearning Center!');
+
+/**
+ * Implements hook_cron().
+ */
+function ghel_reminder_cron() {
+  if(!module_exists("ghel_mail_safety")) {
+    // We want to enforce having the mail safety module enabled to avoid
+    // accidentally sending mail after updating code via git
+    watchdog('ghel_reminder', "Error: ghel_mail_safety is not enabled");
+    return;
+  }
+
+  $now = time();
+  // Get each user's "started course" achievements up to one year ago
+  $started_courses = ghel_achievements_get_achievements_of_type('g-c-start', null, GHEL_SAFETY_MAX_ACCESS_TIME);
+
+  // Get each user's "completed course" achievements up to one year ago
+  $completed_courses = ghel_achievements_get_achievements_of_type('g-c-completion', null, GHEL_SAFETY_MAX_ACCESS_TIME);
+
+  // Get list of all reminded users with course ID and reminder timestamp
+  $results = db_query("select uid, course_id, reminded from ghel_reminder");
+  $reminded_uids = array();
+  foreach($results as $result) {
+    if(!isset($reminded_uids[$result->uid])) {
+      $reminded_uids[$result->uid] = array();
+    }
+    $reminded_uids[$result->uid][$result->course_id] = $result->reminded;
+  }
+
+  $to_remind = array();
+  foreach($started_courses as $course => $uids) {
+    foreach($uids as $uid => $timestamp) {
+      // If user did not complete course, run reminder logic
+      if(empty($completed_courses[$course]) || !in_array($uid, array_keys($completed_courses[$course]))) {
+        $since_started = $now - $timestamp;
+        if($since_started >= GHEL_REMINDER_ONE_MONTH) {
+          if($since_started >= GHEL_REMINDER_THREE_MONTHS) {
+            $period = GHEL_REMINDER_THREE_MONTHS;
+          }
+          else {
+            $period = GHEL_REMINDER_ONE_MONTH;
+          }
+
+          if(!isset($reminded_uids[$uid][$course]) || $reminded_uids[$uid][$course] < $period) {
+            // We run the following code within this if statement instead of
+            // earlier because of the massive performance increase gained from
+            // holding off calling user_load for as long as possible
+            $user = user_load($uid);
+            $u_reminder = field_get_items('user', $user, 'field_ghel_reminder');
+            if(empty($u_reminder) || $u_reminder[0]['value'] == false) {
+              // Don't send emails to users who have unchecked the checkbox for sending reminders
+              $size = count($uids);
+              continue;
+            }
+
+            if(!isset($to_remind[$uid])) {
+              $to_remind[$uid] = array();
+            }
+            $to_remind[$uid][$course] = $period;
+          }
+        }
+      }
+    }
+  }
+
+  $course_ids = array();
+  foreach($to_remind as $uid => $course) {
+    $remind_period = GHEL_REMINDER_THREE_MONTHS * 100;
+    foreach($course as $course_id => $period) {
+      if($period < $remind_period) { // Use the shortest period
+        $remind_period = $period;
+      }
+      $course_ids[] = $course_id;
+    }
+    ghel_reminder_remind_user($uid, $course_ids, $remind_period);
+    $course_ids = array();
+  }
+}
+
+function ghel_reminder_remind_user($uid, array $course_ids, $period) {
+  $now = time();
+
+  $account = user_load($uid);
+  $params = array(
+    'account' => $account,
+    'course_ids' => $course_ids,
+    'period' => $period,
+  );
+
+  $message = drupal_mail('ghel_reminder', 'reminder', $account->mail, user_preferred_language($account), $params, variable_get('site_mail', ini_get('sendmail_from')));
+  if ($message['result']) {
+    watchdog('ghel_reminder', 'Reminder mail successfully sent to !mail.', array('!mail' => $account->mail), WATCHDOG_WARNING);
+    ghel_reminder_log_reminder($uid, $course_ids, $period);
+  }
+  else if ( $message['send'] == FALSE ) {
+    watchdog('ghel_reminder', 'Reminder mail to !mail aborted.', array('!mail' => $account->mail), WATCHDOG_WARNING);
+  }
+  else {
+    watchdog('ghel_reminder', 'Reminder mail failure for account with address !mail.', array('!mail' => $account->mail), WATCHDOG_WARNING);
+  }
+}
+
+function ghel_reminder_log_reminder($uid, $course_ids, $period) {
+  foreach($course_ids as $course_id) {
+    db_merge('ghel_reminder')
+      ->key(array('uid' => $uid, 'course_id' => $course_id))
+      ->fields(array(
+        'reminded' => $period,
+        )
+      )
+      ->execute();
+  }
+}
+
+/**
+ * Implementation of hook_mail().
+ */
+function ghel_reminder_mail($key, &$message, $params) {
+  global $base_url;
+  global $base_path;
+  $site_url = $base_url . $base_path;
+//  $variables['!site'] = variable_get('site_name', "GHeL");
+  $variables['!site'] = 'GHeL';
+  $variables['!user'] = $params['account']->field_ghel_first_name[$account->language][0]['safe_value'];
+
+  $period = $params['period'];
+  switch ($period) {
+    case GHEL_REMINDER_THREE_MONTHS:
+      $variables['!period'] = t('three months');
+      break;
+    case GHEL_REMINDER_ONE_MONTH:
+    default:
+      $variables['!period'] = t('one month');
+  }
+  $course_ids = $params['course_ids'];
+
+  $links = array();
+  foreach($course_ids as $course_id) {
+    $links[] = _ghel_achievements_node_link(node_load($course_id));
+  }
+  $variables['!links'] = '<p>' . implode(",<br>", $links) . "</p>";
+
+  $message['subject'] = t(GHEL_REMINDER_MESSAGE_SUBJECT, $variables);
+  $message['body'][] = 
+    t("<p>Dear !user,</p>", $variables) .
+    t("<p>Thank you for signing up for the Global Health eLearning Center!</p>") .
+    t("<p>We noticed you started the following courses listed below. If you would like to finish these courses and earn your certificates, please follow these links to the courses on GHeL.</p>") .
+    t("!links", $variables) .
+    t("<p>The Global Health eLearning Center offers a wide range of courses for free on a number of global health topics. We encourage you to stay up-to-date on the latest technical information to improve your public health practice.</p>") .
+    t("<p>Sincerely,<br>") .
+    t("The GHeL Team</p>");
+
+//  watchdog('ghel_reminder', print_r($message['body'], true));
+}

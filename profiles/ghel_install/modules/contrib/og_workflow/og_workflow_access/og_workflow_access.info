@@ -1,0 +1,6 @@
+name = "Organic Groups Workflow Access"
+description = "Groupwise content access control based on workflows and roles."
+dependencies[] = workflow_access
+dependencies[] = og_workflow
+package = "Organic groups"
+core = 7.x

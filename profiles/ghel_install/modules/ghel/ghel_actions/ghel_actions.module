@@ -1,0 +1,226 @@
+<?php
+/**
+ * @file
+ * Define custom actions for GHeL.
+ */
+
+/**
+ * Implements hook_action_info().
+ */
+function ghel_actions_action_info() {
+  return array(
+    'ghel_actions_create_section_action' => array(
+      'type' => 'node',
+      'label' => t('Create sub-section course page content'),
+      'configurable' => FALSE,
+      'triggers' => array('node_insert'),
+    ),
+    'ghel_actions_create_course_action' => array(
+      'type' => 'node',
+      'label' => t('Create course action.'),
+      'configurable' => FALSE,
+      'triggers' => array('node_insert'),
+    ),
+    'ghel_actions_remove_program_achievements' => array(
+      'type' => 'node',
+      'label' => t('Revoke program achievements if necessary'),
+      'configurable' => FALSE,
+      'triggers' => array('node_update'),
+    ),
+  );
+}
+
+/**
+ * Helper function to return all available workflow transition triggers.
+ */
+function ghel_actions_workflow_triggers() {
+  $triggers = workflow_actions_trigger_info();
+  if (!empty($triggers)) {
+    return array_keys($triggers['workflow']);
+  }
+  else {
+    return array();
+  }
+}
+
+/**
+ * Action when course sections are created.
+ *
+ * Creates one opening quiz, five course pages, and one closing quiz.
+ */
+function ghel_actions_create_section_action($section_node, $context) {
+  // Make sure this node is a section node type.
+  $types = array('ghel_course_section');
+  if (in_array($section_node->type, $types)) {
+    // Make sure we have a valid group id.
+    $group_ids = field_get_items('node', $section_node, 'field_ghel_course');
+
+    if (!empty($group_ids)) {
+      // Create our sub-pages: one opening-quiz, five pages, one closing page.
+      $title = t('@section: opening Quiz', array('@section' => $section_node->title));
+
+      // If we have a specified index increment it for the sub-pages.
+      if (!empty($section_node->ghel_course_nav_after)) {
+        $section_node->ghel_course_nav_after++;
+      }
+      $node = ghel_actions_node_stub($section_node, 'quiz', $title);
+      $node->field_ghel_course = $section_node->field_ghel_course;
+      node_save($node);
+
+      // Now create five pages.
+      for ($i = 1; $i < 6; $i++) {
+        // If we have a specified index increment it for the sub-pages.
+        if (!empty($section_node->ghel_course_nav_after)) {
+          $section_node->ghel_course_nav_after++;
+        }
+        $title = t('@section: Page !number', array('@section' => $section_node->title, '!number' => $i));
+        $node = ghel_actions_node_stub($section_node, 'ghel_course_page', $title);
+        $node->field_ghel_course = $section_node->field_ghel_course;
+        node_save($node);
+      }
+
+      // The closing quiz.
+      // If we have a specified index increment it for the sub-pages.
+      if (!empty($section_node->ghel_course_nav_after)) {
+        $section_node->ghel_course_nav_after++;
+      }
+      $title = t('@section: closing Quiz', array('@section' => $section_node->title));
+      $node = ghel_actions_node_stub($section_node, 'quiz', $title);
+      $node->field_ghel_course = $section_node->field_ghel_course;
+      node_save($node);
+
+      if (!empty($context['is_final'])) {
+        // The final exam.
+        $final_exam = ghel_actions_node_stub($section_node, 'quiz', t('Final Exam'));
+        $final_exam->field_ghel_course = $section_node->field_ghel_course;
+
+        // Set the pass rate to 100% and don't allow skipping questions.
+        $final_exam->pass_rate = 100;
+        $final_exam->allow_skipping = 0;
+        node_save($final_exam);
+      }
+    }
+  }
+}
+
+/**
+ * Action when courses are created.
+ *
+ * This action creates five course sections.
+ */
+function ghel_actions_create_course_action($course_node, $context) {
+  // Make sure this node is a course type.
+  $types = array('ghel_course');
+
+  if (in_array($course_node->type, $types)) {
+    if (!empty($course_node->nid)) {
+      for ($i = 1; $i < 6; $i++) {
+        $title = t('Session !number', array('!number' => $i));
+        $section = ghel_actions_node_stub($course_node, 'ghel_course_section', $title);
+        $section->field_ghel_course[LANGUAGE_NONE][] = array('target_id' => $course_node->nid);
+        node_save($section);
+        // Trigger the section creation on the course_section we just created,
+        // and if it is the last section create the final exam too.
+        actions_do(array('ghel_actions_create_section_action'), $section, array('is_final' => $i == 5));
+      }
+    }
+  }
+}
+
+/**
+ * Action to remove program achievements if a new course is added to a program.
+ *
+ * @param object $node
+ *   The node triggering the action.
+ *
+ * @param array $context
+ *   The contextual action information.
+ */
+function ghel_actions_remove_program_achievements($node, $context) {
+  if ($node->type == 'ghel_program') {
+    if ($node->field_ghel_courses != $node->original->field_ghel_courses) {
+      $current = field_get_items('node', $node, 'field_ghel_courses');
+      $previous = field_get_items('node', $node->original, 'field_ghel_courses');
+      // We are only concerned with courses being added. Removing courses does
+      // not affect whether or not a user has earned the program achievement.
+      if ($current != $previous) {
+        // Now iterate over all of our current values and make sure they are in
+        // the previous array.
+        $new = array();
+        foreach ($current as $citem) {
+          $exists = FALSE;
+          foreach ($previous as $pitem) {
+            if ($citem['target_id'] == $pitem['target_id']) {
+              $exists = TRUE;
+              break;
+            }
+          }
+
+          if (!$exists) {
+            $new[] = $citem['target_id'];
+          }
+        }
+
+        if (!empty($new)) {
+          // We have new courses in this program. Revoke all user's program
+          // achievements for this program, and send an email detailng this.
+          $achievement_id = 'g-p-completion-' . $node->nid . '-0';
+          $unlocks = db_select('achievement_unlocks', 'au')
+            ->fields('au', array('uid'))
+            ->condition('achievement_id', $achievement_id)
+            ->execute()
+            ->fetchCol();
+
+          foreach ($unlocks as $uid) {
+            // Revoke the achievement.
+            achievements_locked($achievement_id, $uid);
+
+            // Now send a corresponding email to the user.
+            $account = user_load($uid);
+            $params['account'] = $account;
+            $params['context']['achievement_id'] = $achievement_id;
+            drupal_mail('ghel_achievements', 'removed_program_achievement_course_added', $account->mail, user_preferred_language($account), $params);
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Helper function to create a node stub with common attributes.
+ *
+ * @param object $trigger_node
+ *   Node object of the node triggering this node creation.
+ *
+ * @param string $type
+ *   The node type to use in the stub node.
+ *
+ * @param string $title
+ *   The tile of the node stub.
+ *
+ * @param string $body
+ *   The node body to use.
+ *
+ * @return object
+ *   A Node object stub useful for creating new nodes.
+ */
+function ghel_actions_node_stub($trigger_node, $type, $title, $body = '') {
+  $node = new stdClass();
+  $node->type = $type;
+  $node->title = $title;
+  $node->body = $body;
+  $node->status = $trigger_node->status;
+  $node->uid = $trigger_node->uid;
+  $node->created = $trigger_node->created;
+  $node->timestamp = $trigger_node->timestamp;
+  $node->sticky = $trigger_node->sticky;
+  $node->language = $trigger_node->language;
+  $node->name = $trigger_node->name;
+  if (!empty($trigger_node->ghel_course_nav_after)) {
+    $node->ghel_course_nav_after = $trigger_node->ghel_course_nav_after;
+  }
+  $node->revision = 0;
+  $node->comment = COMMENT_NODE_OPEN;
+  return $node;
+}

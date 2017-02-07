@@ -1,0 +1,4 @@
+name = Attribute selector Example
+description = Provides an example usage of the attribute selector widget.
+core = 7.x
+dependencies[] = attribute_selector

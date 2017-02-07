@@ -1,0 +1,177 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Workflow feature.
+ */
+
+include_once 'ghel_workflow.features.inc';
+
+// Workflow uses serial ids. These values are from workflow_states table.
+define('GHEL_WORKFLOW_STATE_CREATION', 6);
+define('GHEL_WORKFLOW_STATE_UNDER_REVIEW', 7);
+define('GHEL_WORKFLOW_STATE_FEEDBACK', 8);
+define('GHEL_WORKFLOW_STATE_PUBLISHED', 9);
+define('GHEL_WORKFLOW_STATE_ARCHIVED', 10);
+
+// OG Access doesn't define constants for public or private at group level
+// @see og_access_og_fields_info() $allowed_values
+define('GHEL_WORKFLOW_OG_PUBLIC', 0);
+define('GHEL_WORKFLOW_OG_PRIVATE', 1);
+
+/**
+ * Define a couple of workflow ID constants since workflow uses serial IDs.
+ */
+function ghel_workflow_init() {
+  if (db_table_exists('workflows')) {
+    $result = db_select('workflows', 'w')
+      ->fields('w', array('wid'))
+      ->condition('name', 'Course Status')
+      ->execute()
+      ->fetchAssoc();
+    if (!empty($result['wid'])) {
+      define('GHEL_WORKFLOW_COURSE', $result['wid']);
+    }
+
+  }
+}
+
+/**
+ * Implements hook_workflow().
+ */
+function ghel_workflow_workflow($op, $old_state, $new_state, $node) {
+  if ($op == 'transition post') {
+    switch($new_state) {
+      case GHEL_WORKFLOW_STATE_UNDER_REVIEW:
+        ghel_workflow_transition_under_review($node);
+        break;
+      case GHEL_WORKFLOW_STATE_FEEDBACK:
+        ghel_workflow_transition_feedback($node);
+        break;
+      case GHEL_WORKFLOW_STATE_PUBLISHED:
+        ghel_workflow_transition_published($node);
+        break;
+      case GHEL_WORKFLOW_STATE_ARCHIVED:
+        ghel_workflow_transition_archived($node);
+        break;
+    }
+  }
+}
+
+/**
+ * Transitions course to under review.
+ *
+ * Assumes that if this is a new node the default settings are correct since we
+ * can not call node_save() safely from this function on a new node.
+ *
+ * @param object $node
+ *   The course node being transitioned.
+ */
+function ghel_workflow_transition_under_review($node) {
+  $course_content = ghel_course_get_course_content($node);
+
+  // adjust course content
+  foreach ($course_content as $content) {
+    if (!isset($content->is_new) || !$content->is_new) {
+      $content->comment = COMMENT_NODE_HIDDEN;
+
+      // set group content private
+      $content->group_content_access[LANGUAGE_NONE][0]['value'] = OG_CONTENT_ACCESS_PRIVATE;
+      node_save($content);
+    }
+  }
+
+  // Set group private
+  if (!isset($node->is_new) || !$node->is_new) {
+    $node->group_access[LANGUAGE_NONE][0]['value'] = GHEL_WORKFLOW_OG_PRIVATE;
+    node_save($node);
+  }
+}
+
+/**
+ * Transitions course to feedback.
+ *
+ * Assumes that if this is a new node the default settings are correct since we
+ * can not call node_save() safely from this function on a new node.
+ *
+ * @param object $node
+ *   The course node being transitioned.
+ */
+function ghel_workflow_transition_feedback($node) {
+  $course_content = ghel_course_get_course_content($node);
+
+  // adjust course content
+  foreach ($course_content as $content) {
+    if (!isset($content->is_new) || !$content->is_new) {
+      $content->comment = COMMENT_NODE_OPEN;
+
+      // set group content private
+      $content->group_content_access[LANGUAGE_NONE][0]['value'] = OG_CONTENT_ACCESS_PRIVATE;
+      node_save($content);
+    }
+  }
+
+  // Set group private
+  if (!isset($node->is_new) || !$node->is_new) {
+    $node->group_access[LANGUAGE_NONE][0]['value'] = GHEL_WORKFLOW_OG_PRIVATE;
+    node_save($node);
+  }
+}
+
+/**
+ * Transitions course to published
+ *
+ * Assumes that if this is a new node the default settings are correct since we
+ * can not call node_save() safely from this function on a new node.
+ *
+ * @param object $node
+ *   The course node being transitioned.
+ */
+function ghel_workflow_transition_published($node) {
+  $course_content = ghel_course_get_course_content($node);
+
+  // adjust course content
+  foreach ($course_content as $content) {
+    if (!isset($content->is_new) || !$content->is_new) {
+      $content->comment = COMMENT_NODE_HIDDEN;
+
+      // set group content public
+      $content->group_content_access[LANGUAGE_NONE][0]['value'] = OG_CONTENT_ACCESS_PUBLIC;
+      node_save($content);
+    }
+  }
+
+
+  // Set group public
+  if (!isset($node->is_new) || !$node->is_new) {
+    $node->group_access[LANGUAGE_NONE][0]['value'] = GHEL_WORKFLOW_OG_PUBLIC;
+    node_save($node);
+  }
+}
+
+/**
+ * Transitions course to archived.
+ *
+ * @param object $node
+ *   The course node being transitioned.
+ */
+function ghel_workflow_transition_archived($node) {
+  $course_content = ghel_course_get_course_content($node);
+
+  // adjust course content
+  foreach ($course_content as $content) {
+    if (!isset($content->is_new) || !$content->is_new) {
+      $content->comment = COMMENT_NODE_CLOSED;
+
+      // set group content private
+      $content->group_content_access[LANGUAGE_NONE][0]['value'] = OG_CONTENT_ACCESS_PRIVATE;
+      node_save($content);
+    }
+  }
+
+  // Set group private
+  if (!isset($node->is_new) || !$node->is_new) {
+    $node->group_access[LANGUAGE_NONE][0]['value'] = GHEL_WORKFLOW_OG_PRIVATE;
+    node_save($node);
+  }
+}
+

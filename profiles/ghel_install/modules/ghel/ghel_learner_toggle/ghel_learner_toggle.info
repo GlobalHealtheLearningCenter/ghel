@@ -1,0 +1,9 @@
+name = GHeL Learner Toggle
+description = "Context condition for users without the learner role to toggle the learner role for reviewing and/or taking courses."
+package = "GHeL"
+core = "7.x"
+dependencies[] = ctools
+dependencies[] = context
+dependencies[] = ghel_user_configuration
+
+version = "7.x-1.x-dev"

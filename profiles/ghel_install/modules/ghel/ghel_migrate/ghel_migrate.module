@@ -1,0 +1,150 @@
+<?php
+/**
+ * @file
+ * GHeL migration.
+ */
+
+define('GHELBINARYDIR', '/srv/www/binaries/imglib/');
+
+/**
+ * Implements hook_migrate_api().
+ */
+function ghel_migrate_migrate_api() {
+  $api = array(
+    'api' => 2,
+  );
+  return $api;
+}
+
+/**
+ * Rewrite inline javascript glossary links as taxonomy links.
+ */
+function _ghel_migrate_fix_taxonomy_links($body) {
+  $pattern = '#<A onclick="window\.open\(\'glossarypopup.cfm\?term=(\d+)\',\'GTPopup\',\'height=200,width=370,scrollbars=yes,resizable=yes\'\);" href="javascript:void\(0\);" \?>(.+?)</A>#im';
+  return preg_replace_callback($pattern, '_ghel_migrate_fix_taxonomy_links_callback', $body);
+}
+
+/**
+ * Callback for preg_replace to rewrite glossary links as taxonomy links.
+ */
+function _ghel_migrate_fix_taxonomy_links_callback($matches) {
+  // Check whether or not we are actually using an alternate glossaryID.
+  $tid = db_query('SELECT use_glossaryid FROM funnymonkey_import.glossaryPatch WHERE glossaryid = :id', array(':id' => $matches[1]))->fetchField();
+  if (empty($tid)) {
+    $tid = $matches[1];
+  }
+  $term = Migration::getInstance('GhelGlossary')->getMap()->lookupDestinationID(array($tid));
+  if ($term) {
+    $term = reset($term);
+    return l($matches[2], 'taxonomy/term/' . $term);
+  }
+  else {
+    drupal_set_message(t("No term found for glossaryid %id (%name)", array('%id' => $matches[1], '%name' => $matches[2])), 'error');
+    // Not found, unlinkify.
+    return $matches[2];
+  }
+}
+
+/**
+ * Given a workflow name and a workflow state return the corresponding sid.
+ *
+ * @param string $wname
+ *   Workflow state name: eg. 'Course Page Status', 'Course Status'
+ *
+ * @param string $sname
+ *   Workflow state name.
+ *
+ * @return mixed
+ *   sid representing the state id, or FALSE otherwise.
+ */
+function _ghel_migrate_get_workflow_state($wname, $sname) {
+  $cached = &drupal_static(__FUNCTION__);
+
+  if (empty($cached[$wname][$sname])) {
+    $workflow = workflow_get_workflows_by_name($wname);
+    $states = workflow_get_workflow_states_by_wid($workflow->wid);
+    if (!empty($states)) {
+      foreach ($states as $state) {
+        if ($state->state == $sname) {
+          $cached[$wname][$sname] = $state->sid;
+        }
+      }
+    }
+  }
+
+  return $cached[$wname][$sname];
+}
+
+/**
+ * Helper function to set the achievement_totals from achievement_unlocks.
+ */
+function _ghel_migrate_set_achievement_totals() {
+  // We just clear everything out as everything is single unlock worth one point
+  // they can be entirely derived.
+  db_delete('achievement_totals')->execute();
+  $query = db_select('achievement_unlocks', 'u')
+    ->fields('u', array('achievement_id', 'uid', 'timestamp'));
+  $query->addExpression('COUNT(uid)', 'points');
+  $query->orderBy('timestamp', 'DESC')
+    ->groupBy('uid');
+  $result = $query->execute();
+
+  if (!empty($result)) {
+    foreach ($result as $row) {
+      db_insert('achievement_totals')
+        ->fields(array(
+          'uid' => $row->uid,
+          'points' => $row->points,
+          'unlocks' => $row->points,
+          'timestamp' => $row->timestamp,
+          'achievement_id' => $row->achievement_id,
+        ))
+        ->execute();
+    }
+  }
+
+  drupal_static_reset('achievements_unlocked_already');
+}
+
+
+/**
+ * Function to check all programs for users.
+ */
+function ghel_migrate_check_programs() {
+  if (function_exists('drush_print')) {
+    $migration = MigrationBase::getInstance('GhelExamStatus', 'GhelExamStatusMigration', array());
+    if ($migration->isComplete()) {
+      if (!variable_get('ghel_programs_migrated', FALSE)) {
+        $query = new EntityFieldQuery();
+        $entities = $query->entityCondition('entity_type', 'node')
+          ->entityCondition('bundle', 'ghel_program')
+          ->execute();
+        $programs = node_load_multiple(array_keys($entities['node']));
+
+        // Only pull uids from those users that have achieved something.
+        $accounts = db_select('achievement_unlocks', 'a')
+          ->fields('a', array('uid'))
+          ->groupBy('uid')
+          ->execute()
+          ->fetchAll();
+
+        if (!empty($programs) && !empty($accounts)) {
+          foreach ($programs as $program) {
+            foreach ($accounts as $account) {
+              if (ghel_achievements_completed_program($program, $account)) {
+                drush_print($account->uid . ' achieved ' . $program->nid);
+                achievements_unlocked('ghel-program-completion-' . $program->nid, $account->uid);
+              }
+            }
+          }
+        }
+
+        variable_set('ghel_programs_migrated', TRUE);
+      }
+    }
+  }
+  else {
+    drupal_set_message("ghel_migrate_check_programs() intended to be ran via drush
+      <br /><code>drush ev 'ghel_migrate_check_programs();'</code>");
+  }
+}

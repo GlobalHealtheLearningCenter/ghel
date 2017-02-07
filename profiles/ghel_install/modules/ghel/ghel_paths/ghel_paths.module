@@ -1,0 +1,61 @@
+<?php
+/**
+ * @file
+ * Code for the GHeL Paths feature.
+ */
+
+include_once 'ghel_paths.features.inc';
+
+
+/**
+ * Implements hook_node_presave().
+ *
+ * Creates an 'und' entry in url_alias so all non-English languages get the same alias.
+ */
+function ghel_paths_node_presave($node) {
+  _ghel_paths_create_und_alias($node);
+}
+
+/**
+ * Implements hook_node_insert().
+ */
+function ghel_paths_node_insert($node) {
+  _ghel_paths_create_und_alias($node);
+}
+/**
+ * Helper function.
+ *
+ * Create an alias with language as 'und' so all view of nodes outside of
+ * English get the same alias (but show with the language precursor.
+ */
+function _ghel_paths_create_und_alias($node) {
+  // Make sure there isn't an 'und' alias already and don't try to create an alias
+  // if the node is just being created (and there is no nid yet)
+  $existing = drupal_lookup_path($action = 'alias', $path = 'node/' . $node->nid, $path_language = LANGUAGE_NONE);
+  if ($existing || ($node->is_new && empty($node->nid))) {
+    return;
+  }
+  $options = array('language' => LANGUAGE_NONE);
+
+  // Skip processing if the node has no pattern.
+  if (!pathauto_pattern_load_by_entity('node', $node->type, $options['language'])) {
+    return;
+  }
+
+  $source = 'node/' . $node->nid;
+  $en_alias = drupal_lookup_path('alias', $source, 'en');
+  if ($en_alias) { // Check first for an English alias
+    $path = array(
+      'source' => $source,
+      'alias' => $en_alias,
+      'language' => 'und'
+    );
+    path_save($path);
+  } else { // If no English alias, create one via pathauto
+    module_load_include('inc', 'pathauto');
+    $uri = entity_uri('node', $node);
+    if ($uri) {
+      pathauto_create_alias('node', $op, $uri['path'], array('node' => $node), $node->type, $options['language']);
+    }
+  }
+}

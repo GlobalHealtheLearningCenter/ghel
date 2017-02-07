@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Translation views feature.
+ */
+
+include_once 'ghel_trans_views.features.inc';

@@ -1,0 +1,7 @@
+name = gHeL Node Status Update
+description = Contains Functionality for One-Time update of nodes where status = published but workflow != published.
+core = 7.x
+package = GHeL Content Types
+php = 5.2.4
+version = 7.x-1.0
+project = ghel_node_status_update

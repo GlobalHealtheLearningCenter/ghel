@@ -1,0 +1,220 @@
+// //
+// // @file
+// // Non-layout Content type specific styles.
+// // If styles can be used across content types, they should
+// // go in components/_modes.scss instead.
+
+// %teaser-wide {
+//   @include zen-grid-container;
+
+//   > .ds-header {
+//     margin-bottom: rhythm(2);
+//   }
+
+//   .field-image {
+//     max-width: 100%;
+
+//     @include breakpoint($mobile, $no-query: '.lt-ie9') {
+//       max-width: 33%;
+//     }
+//   }
+
+//   @include breakpoint($tablet-wide, $no-query: '.lt-ie9') {
+//     > .ds-header {
+//       @include zen-grid-item(4,1);
+//       padding-left: 0;
+//     }
+
+//     > .ds-content {
+//       @include zen-grid-item(8,1,right);
+//     }
+
+//     > .ds-footer {
+//       @include zen-grid-item(8,1,right);
+//       @include zen-clear(right);
+//     }
+//   }
+// }
+
+// // Courses
+// .node-ghel-course.view-mode-teaser {
+//   @extend %teaser-wide;
+
+//   .field-image {
+//     @extend .image-left;
+//   }
+
+//   > .field-ghel-promotional-text {
+//     float: right;
+//     width: 60%;
+//   }
+// }
+
+// .node-ghel-course.view-mode-full {
+//   @include breakpoint($tablet, $no-query: '.lt-ie9') {
+//     > .ds-content {
+//       @include zen-grid-item(8,1);
+//       padding-left: 0;
+//     }
+//   }
+// }
+
+// // Partners
+// .node-ghel-partner.view-mode-full {
+//   > .ds-header {
+//     @include zen-grid-item(3,1);
+//     padding-left: 0;
+//     text-align: center;
+//   }
+
+//   > .ds-content {
+//     @include zen-grid-item(8,1,right);
+//   }
+// }
+
+// .node-ghel-partner.view-mode-teaser {
+//   @extend %teaser-wide;
+// }
+
+// // Programs
+// .node-ghel-program.view-mode-teaser {
+//   @include zen-grid-container;
+
+//   > .ds-header {
+//     margin-bottom: rhythm(2);
+//   }
+
+//   .field-image {
+//     max-width: 33%;
+//   }
+
+//   @include breakpoint($tablet-wide, $no-query: '.lt-ie9') {
+//     > .ds-header {
+//       @include zen-grid-item(3,1);
+//       padding-left: 0;
+//       text-align: right;
+//     }
+
+//     > .ds-content {
+//       @include zen-grid-item(7,3,right);
+//     }
+
+//     > .ds-footer {
+//       @include zen-grid-item(7,3,right);
+//       @include zen-clear(right);
+//     }
+//   }
+// }
+
+// // Translations
+// .node-ghel-translation.view-mode-teaser {
+//   @extend .node-ghel-course.view-mode-teaser;
+// }
+
+// .node-ghel-translation.view-mode-full {
+//   @extend .node-ghel-course.view-mode-full;
+// }
+
+// // Groups
+// %group-node {
+
+//   .block-title {
+//     @include trailer(0);
+//     padding-left: rhythm(2)
+//   }
+
+//   .block .links {
+//     @include horizontal-list;
+//     padding: rhythm(3) rhythm(2);
+
+//     .nav-link {
+//       @extend %button;
+//       @extend %button-blue;
+//       @extend %button-large;
+//     }
+//   }
+
+//   .field {
+//     @include trailer(1);
+
+//     &.body {
+//       @include padding-leader(1);
+//       @include leading-border(1px);
+//       border-color: $gray-light;
+//     }
+//   }
+
+//   .field-label {
+//     font-size: 1.3em;
+//   }
+
+//   .ds-content {
+//     @include zen-grid-item(12, 1, $gutter-width: 0);
+
+//     @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+//       @include zen-grid-item(7, 1);
+//     }
+//   }
+
+//   .ds-aside {
+//     @include zen-grid-item(12, 1);
+//     text-align: center;
+    
+//     @include breakpoint($mobile-wide, $no-query: '.lt-ie9') {
+//       @include zen-grid-item(4, 9);
+//       clear: none;
+//     }
+    
+//     .group-group {
+//       @include leader(1);
+//       @include trailer(1);
+
+//       a {
+//         @extend %button;
+//         @extend %button-blue;
+//         @extend %button-large;
+//       }
+//     }
+
+//     .field-ghel-er-program {
+//       @include leader(4);
+//       @include trailer(2);
+//     }
+//   }
+
+//   .block-views .block-title {
+//     @extend %title-highlighted;
+//   }
+// }
+
+
+
+
+
+
+.node-ghel-course.view-mode-teaser, 
+.node-ghel-translation.view-mode-teaser{
+
+
+.ds-header{
+    float: none;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    display: block;
+    box-sizing: border-box;
+    word-wrap: break-word;
+    .field-image{
+      float: none;
+      width: 100%;
+    }
+}
+
+.ds-content{
+    float: none;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    display: block;
+}
+}

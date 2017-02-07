@@ -1,0 +1,16 @@
+name = Language Taxonomy
+description = Languages used in Translations
+core = 7.x
+package = Translations
+version = 7.x-0.1
+project = ghel_lang_taxo
+dependencies[] = features
+dependencies[] = taxonomy
+dependencies[] = uuid
+dependencies[] = uuid_features
+features[features_api][] = api:2
+features[taxonomy][] = ghel_trans_language
+features[uuid_term][] = 69dfca88-ea73-4633-b391-ffa5d4b6d439
+features[uuid_term][] = 6c2d4d84-dbff-4fd6-bbfa-12b359855c3c
+features[uuid_term][] = 7c221dbb-6630-4fe1-82cd-84f66b4096d3
+features[uuid_term][] = b91912d6-3a24-4ebb-b4a4-f873407e155e

@@ -1,0 +1,165 @@
+// Establish Vertical rhythm.
+@include establish-baseline();
+
+html > body {
+  @include adjust-leading-to(3);
+  color: $primary-color;
+  font-family: $primary-typeface;
+}
+
+// body.html {
+//   background-color: $gray-white;
+// }
+
+// Headings
+//-----------------------------------------------------------------------------
+
+h1 {
+  @include adjust-font-size-to($h1-font-size);
+  @include rhythm(0, 0, 0, 1, $h1-font-size);
+  color: $accent-color;
+  font-weight: 100;
+}
+
+h2, #block-views-rendered-entities-block h2.block-title {
+  @include adjust-font-size-to($h2-font-size, 3);
+  @include rhythm(0, 0, 0, 1, $h2-font-size);
+  line-height: 1.15em;
+  color: $accent-color;
+  font-family: $secondary-typeface;
+  text-transform:none;
+
+}
+
+h3 {
+  @include adjust-font-size-to($h3-font-size);
+  @include rhythm(2, 0, 0, 2, $h3-font-size);
+  font-family: $secondary-typeface;
+  color: $accent-color;
+}
+
+.field.body h3{
+  color: $secondary;
+}
+
+h4 {
+  @include adjust-font-size-to($h4-font-size);
+  @include rhythm(4, 0, 0, 0, $h4-font-size);
+  font-family: $secondary-typeface;
+  color: $accent-color;
+}
+
+h5 {
+  @include adjust-font-size-to($h5-font-size);
+  @include rhythm(4, 0, 0, 0, $h5-font-size);
+}
+
+h6 {
+  @include adjust-font-size-to($h6-font-size);
+  @include rhythm(4, 0, 0, 0, $h6-font-size);
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+
+// Links
+//-----------------------------------------------------------------------------
+
+a {
+  color:$link-color;
+  &:hover{
+    color:$link-color-hover;
+  }
+  @include hover-link
+}
+
+
+// Copy
+//-----------------------------------------------------------------------------
+
+p {
+  margin: 0 0 rhythm(2);
+}
+
+// Images
+//-----------------------------------------------------------------------------
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+// Definition Lists
+//-----------------------------------------------------------------------------
+
+dl {
+  margin-bottom: rhythm(3);
+}
+
+dt {
+  font-weight: bold;
+}
+
+dd {
+  margin-left: $w-gutter;
+}
+
+// Lists
+//-----------------------------------------------------------------------------
+
+ol,
+ul {
+  padding-left: 1em;
+
+  @include breakpoint($tablet-wide) {
+    // We don't want the .lt-ie9 fallback here because it will create a selector
+    // that is too specific.
+    padding-left: 2em;
+  }
+}
+
+ol > li,
+ul > li {
+  list-style-position: inside;
+}
+
+.node li {
+  margin-bottom: rhythm(1.5);
+}
+
+// Utility classes
+//-----------------------------------------------------------------------------
+
+.clearfix {
+  @include legacy-pie-clearfix;
+}
+
+%clearfix {
+  &:after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+}
+
+.intro {
+  @include adjust-font-size-to($fs-xxl);
+}
+
+// Imagecache Preset Floats
+//-----------------------------------------------------------------------------
+
+.image-medium_left, .image-large_left {
+  float: left;
+  margin: 4px 10px 4px 0;
+}
+
+.image-medium_right, .image-large_right {
+  float: right;
+  margin: 4px 0 4px 30px;
+}
+
+.image-medium_center, .image-large_center, .image-extra_large_center {
+  margin: 4px auto;
+  display: block;
+}

@@ -1,0 +1,14 @@
+name = GHEL Notifications
+description = Send out user notifications of site content. Implementation assumes MySQL.
+core = 7.x
+package = GHeL
+version = 7.x-0.2
+project = ghel_notifications
+dependencies[] = features
+dependencies[] = ghel_discussion
+dependencies[] = ghel_resource
+dependencies[] = ghel_mail_safety
+dependencies[] = list
+dependencies[] = options
+features[features_api][] = api:2
+features[field][] = user-user-field_ghel_notifications
